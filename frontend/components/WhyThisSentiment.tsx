@@ -13,7 +13,7 @@ export default function WhyThisSentiment({
   quietNote: string;
 }) {
   return (
-    <aside style={{ borderLeft: "1px solid rgba(33,28,21,0.3)", paddingLeft: 30 }}>
+    <aside className="kbk-sidebar">
       <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 700, fontSize: 17, margin: "0 0 4px 0" }}>
         Why this sentiment
       </h2>

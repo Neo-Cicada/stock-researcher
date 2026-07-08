@@ -3,7 +3,7 @@ import BareTwig from "./BareTwig";
 
 export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; quietNote: string }) {
   return (
-    <aside style={{ borderLeft: "1px solid rgba(33,28,21,0.3)", paddingLeft: 32 }}>
+    <aside className="kbk-sidebar">
       <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 700, fontSize: 18, margin: "0 0 18px 0" }}>Today&rsquo;s Themes</h2>
 
       {themes.map((theme) => (
@@ -11,7 +11,7 @@ export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; q
           key={theme.title}
           style={{ paddingBottom: 18, marginBottom: 18, borderBottom: "1px solid rgba(33,28,21,0.18)" }}
         >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
             <span
               style={{
                 fontFamily: "var(--font-mincho)",
@@ -25,17 +25,17 @@ export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; q
                 alignItems: "center",
                 justifyContent: "center",
                 transform: `rotate(${theme.rotation}deg)`,
-                flex: "0 0 auto",
+                flexShrink: 0,
               }}
             >
               {theme.stamp}
             </span>
-            <h3 style={{ fontFamily: "var(--font-mincho)", fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.35 }}>
+            <h3 style={{ fontFamily: "var(--font-mincho)", fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.35, minWidth: 0, overflowWrap: "break-word" }}>
               {theme.title}
             </h3>
           </div>
-          <p style={{ fontSize: 12, lineHeight: 1.55, margin: "8px 0 10px 0", opacity: 0.78 }}>{theme.summary}</p>
-          <div style={{ display: "flex", gap: 6 }}>
+          <p style={{ fontSize: 12, lineHeight: 1.55, margin: "8px 0 10px 0", opacity: 0.78, overflowWrap: "break-word", wordBreak: "break-word" }}>{theme.summary}</p>
+          <div className="kbk-theme-tickers">
             {theme.tickers.map((t) => (
               <span
                 key={t}

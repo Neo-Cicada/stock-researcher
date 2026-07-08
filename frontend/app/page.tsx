@@ -7,19 +7,8 @@ export default function DashboardPage() {
   const rows = getTrendingRows();
 
   return (
-    <main data-screen-label="Dashboard" style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "0 56px 80px 96px" }}>
-      <span
-        style={{
-          position: "absolute",
-          left: 34,
-          top: 52,
-          writingMode: "vertical-rl",
-          fontFamily: "var(--font-mincho)",
-          fontSize: 15,
-          letterSpacing: "0.5em",
-          opacity: 0.5,
-        }}
-      >
+    <main data-screen-label="Dashboard" className="kbk-page-main">
+      <span className="kbk-abs-label">
         相場の季節
       </span>
 
@@ -44,14 +33,14 @@ export default function DashboardPage() {
         />
       </svg>
 
-      <section style={{ display: "grid", gridTemplateColumns: "1fr 316px", gap: 56, alignItems: "start" }}>
+      <section className="kbk-dash-grid">
         <TrendingTable rows={rows} />
         <ThemesColumn themes={TODAYS_THEMES} quietNote={THEMES_QUIET_NOTE} />
       </section>
 
-      <footer style={{ marginTop: 56, display: "flex", alignItems: "baseline", gap: 16, borderTop: "1px solid rgba(33,28,21,0.3)", paddingTop: 12 }}>
+      <footer className="kbk-footer">
         <span style={{ fontSize: 10.5, letterSpacing: "0.16em", opacity: 0.5 }}>RESEARCH, NOT INVESTMENT ADVICE.</span>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.4, marginLeft: "auto" }}>data delayed 15 min</span>
+        <span className="kbk-footer-right" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.4 }}>data delayed 15 min</span>
       </footer>
     </main>
   );

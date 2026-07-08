@@ -9,17 +9,7 @@ export default function ScorecardPillars({ pillars }: { pillars: Pillar[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
-    <section
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(5, 1fr)",
-        gap: 1,
-        background: "rgba(33,28,21,0.3)",
-        border: "1px solid rgba(33,28,21,0.3)",
-        marginTop: 36,
-        alignItems: "stretch",
-      }}
-    >
+    <section className="kbk-pillars-grid">
       {pillars.map((p) => {
         const h = (54 * p.score) / 100;
         const rectY = 62 - h;

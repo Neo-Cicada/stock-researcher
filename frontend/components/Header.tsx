@@ -44,16 +44,8 @@ export default function Header() {
   }
 
   return (
-    <header
-      style={{
-        display: "flex",
-        alignItems: "baseline",
-        gap: 28,
-        padding: "26px 56px 20px 96px",
-        borderBottom: "1px solid rgba(33,28,21,0.35)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+    <header className="kbk-header">
+      <div className="kbk-header-brand">
         <span style={{ fontFamily: "var(--font-mincho)", fontWeight: 800, fontSize: 30, letterSpacing: "0.06em" }}>
           株価
         </span>
@@ -61,8 +53,8 @@ export default function Header() {
           KABUKA
         </span>
       </div>
-      <span style={{ fontSize: 11, letterSpacing: "0.14em", opacity: 0.55 }}>RICE-PAPER MARKET RESEARCH</span>
-      <nav style={{ marginLeft: "auto", display: "flex", gap: 30, alignItems: "center" }}>
+      <span className="kbk-header-tagline">RICE-PAPER MARKET RESEARCH</span>
+      <nav className="kbk-header-nav">
         <Link href="/" style={linkStyle}>
           {onDash && <span style={dotStyle} />}
           <span>DASHBOARD</span>
@@ -73,12 +65,7 @@ export default function Header() {
         </Link>
         <form
           onSubmit={handleSearch}
-          style={{
-            borderLeft: "1px solid rgba(33,28,21,0.35)",
-            paddingLeft: 22,
-            display: "flex",
-            alignItems: "center",
-          }}
+          className="kbk-header-search"
         >
           <input
             type="text"
@@ -86,7 +73,7 @@ export default function Header() {
             onChange={(e) => setQuery(e.target.value.toUpperCase())}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
-            placeholder="検索 TICKER"
+            placeholder="SEARCH STOCK"
             maxLength={5}
             style={{
               fontFamily: "var(--font-mono)",
@@ -103,15 +90,7 @@ export default function Header() {
             }}
           />
         </form>
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            opacity: 0.6,
-            borderLeft: "1px solid rgba(33,28,21,0.35)",
-            paddingLeft: 22,
-          }}
-        >
+        <span className="kbk-header-date">
           8 Jul 2026 · 開場中 open
         </span>
       </nav>

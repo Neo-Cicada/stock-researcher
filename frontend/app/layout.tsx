@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Shippori_Mincho, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
@@ -25,6 +25,11 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "Kabuka · 株価 — Rice-Paper Market Research",
   description:
@@ -37,6 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         style={{
           minHeight: "100vh",
+          minWidth: 320,
+          maxWidth: 1440,
+          margin: "0 auto",
           background: "#F5F0E5",
           color: "#211C15",
           fontFamily: "var(--font-sans), sans-serif",

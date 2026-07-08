@@ -27,12 +27,12 @@ export default function StockHeader({
   const sprigColor = directionColor(sentimentScore);
 
   return (
-    <section style={{ display: "flex", alignItems: "flex-end", gap: 34, padding: "38px 0 22px 0", borderBottom: "1.5px solid #211C15" }}>
+    <section className="kbk-stockhdr">
       <div>
         <div style={{ fontSize: 11, letterSpacing: "0.22em", opacity: 0.55, marginBottom: 2 }}>
           {name} · {exchange}
         </div>
-        <h1 style={{ fontFamily: "var(--font-mincho)", fontWeight: 800, fontSize: 76, lineHeight: 0.95, margin: 0, letterSpacing: "0.02em" }}>
+        <h1 style={{ fontFamily: "var(--font-mincho)", fontWeight: 800, fontSize: "var(--kbk-ticker-font-size)", lineHeight: 0.95, margin: 0, letterSpacing: "0.02em" }}>
           {ticker}
         </h1>
       </div>
@@ -44,7 +44,7 @@ export default function StockHeader({
           {(up ? "+" : "−") + Math.abs(dayChangeAbs).toFixed(2)} · {(up ? "+" : "−") + Math.abs(dayChangePct).toFixed(2)}%
         </div>
       </div>
-      <div style={{ marginLeft: "auto", textAlign: "right", paddingBottom: 4 }}>
+      <div className="kbk-stockhdr-sentiment">
         <div style={{ fontSize: 10, letterSpacing: "0.2em", opacity: 0.55, marginBottom: 4 }}>
           COMPOSITE SENTIMENT · {insufficient ? "TOO QUIET" : `${sentimentScore} ${sentimentScore >= 50 ? "BULLISH" : "BEARISH"}`}
         </div>

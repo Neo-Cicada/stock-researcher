@@ -28,9 +28,9 @@ export default function MarketSeasonBranch({
   const seasonColor = fearGreed >= 55 ? colors.bullish : fearGreed < 35 ? colors.bearish : colors.ink;
 
   return (
-    <section style={{ display: "flex", gap: 48, alignItems: "stretch", padding: "34px 0 8px 0" }}>
+    <section className="kbk-branch-outer">
       <div style={{ flex: "1 1 auto", position: "relative", minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 4 }}>
+        <div className="kbk-branch-heading">
           <h1 style={{ fontFamily: "var(--font-mincho)", fontWeight: 700, fontSize: 21, margin: 0, letterSpacing: "0.04em" }}>
             The Market Season
           </h1>
@@ -100,7 +100,7 @@ export default function MarketSeasonBranch({
         </div>
       </div>
 
-      <aside style={{ flex: "0 0 252px", alignSelf: "flex-end", borderTop: "2px solid #211C15", paddingTop: 10, marginBottom: 6 }}>
+      <aside className="kbk-branch-gauge">
         <div
           style={{
             display: "flex",

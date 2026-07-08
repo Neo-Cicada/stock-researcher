@@ -17,7 +17,7 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 14 }}>
+      <div className="kbk-trending-heading">
         <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 700, fontSize: 18, margin: 0 }}>Trending Tickers</h2>
         <span
           style={{
@@ -40,7 +40,7 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
       {loading ? (
         <TrendingSkeleton />
       ) : (
-        <div>
+        <div className="kbk-trending-scroll"><div className="kbk-trending-inner">
           <div
             style={{
               display: "grid",
@@ -105,11 +105,11 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
               </span>
             </Link>
           ))}
-          <div style={{ fontSize: 10.5, opacity: 0.45, paddingTop: 10, display: "flex", gap: 18 }}>
+          <div style={{ fontSize: 10.5, opacity: 0.45, paddingTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
             <span>Sentiment petals: 5 = strongly bullish crowd</span>
             <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)" }}>sources: reddit · stocktwits · x</span>
           </div>
-        </div>
+        </div></div>
       )}
     </div>
   );

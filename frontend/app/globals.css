@@ -3,6 +3,7 @@ body {
   margin: 0;
   padding: 0;
   background: #f5f0e5;
+  overflow-x: hidden;
 }
 
 * {
@@ -100,4 +101,456 @@ a:hover {
 
 .kbk-pillar:hover {
   background: #efe9db;
+}
+
+/* ── Responsive variables ── */
+:root {
+  --kbk-page-pl: 96px;
+  --kbk-page-pr: 56px;
+  --kbk-page-pb: 80px;
+  --kbk-header-pl: 96px;
+  --kbk-header-pr: 56px;
+  --kbk-ticker-font-size: 76px;
+  --kbk-abs-label-display: block;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --kbk-page-pl: 48px;
+    --kbk-page-pr: 32px;
+    --kbk-header-pl: 48px;
+    --kbk-header-pr: 32px;
+    --kbk-ticker-font-size: 56px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --kbk-page-pl: 16px;
+    --kbk-page-pr: 16px;
+    --kbk-page-pb: 48px;
+    --kbk-header-pl: 16px;
+    --kbk-header-pr: 16px;
+    --kbk-ticker-font-size: 44px;
+    --kbk-abs-label-display: none;
+  }
+}
+
+/* ── Layout classes ── */
+
+.kbk-page-main {
+  position: relative;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--kbk-page-pr) var(--kbk-page-pb) var(--kbk-page-pl);
+}
+
+.kbk-abs-label {
+  position: absolute;
+  left: 34px;
+  top: 52px;
+  writing-mode: vertical-rl;
+  font-family: var(--font-mincho);
+  font-size: 15px;
+  letter-spacing: 0.5em;
+  opacity: 0.5;
+  display: var(--kbk-abs-label-display);
+}
+
+@media (max-width: 1024px) {
+  .kbk-abs-label {
+    left: 12px;
+  }
+}
+
+/* Header */
+.kbk-header {
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+  padding: 26px var(--kbk-header-pr) 20px var(--kbk-header-pl);
+  border-bottom: 1px solid rgba(33, 28, 21, 0.35);
+}
+
+.kbk-header-tagline {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  opacity: 0.55;
+}
+
+.kbk-header-nav {
+  margin-left: auto;
+  display: flex;
+  gap: 30px;
+  align-items: center;
+}
+
+.kbk-header-date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.6;
+  border-left: 1px solid rgba(33, 28, 21, 0.35);
+  padding-left: 22px;
+}
+
+@media (max-width: 1024px) {
+  .kbk-header {
+    flex-wrap: wrap;
+  }
+
+  .kbk-header-tagline {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .kbk-header {
+    gap: 12px;
+    padding: 16px var(--kbk-header-pr) 14px var(--kbk-header-pl);
+  }
+
+  .kbk-header-date {
+    display: none;
+  }
+
+  .kbk-header-nav {
+    margin-left: 0;
+    width: 100%;
+    gap: 16px;
+    border-top: 1px solid rgba(33, 28, 21, 0.18);
+    padding-top: 10px;
+  }
+}
+
+/* Dashboard grid */
+.kbk-dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 316px;
+  gap: 56px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .kbk-dash-grid {
+    grid-template-columns: minmax(0, 1fr) 268px;
+    gap: 36px;
+  }
+}
+
+@media (max-width: 768px) {
+  .kbk-dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+}
+
+/* Stock detail grid */
+.kbk-stock-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 296px;
+  gap: 52px;
+  align-items: start;
+  padding-top: 30px;
+}
+
+@media (max-width: 1024px) {
+  .kbk-stock-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+}
+
+/* Stock header */
+.kbk-stockhdr {
+  display: flex;
+  align-items: flex-end;
+  gap: 34px;
+  padding: 38px 0 22px 0;
+  border-bottom: 1.5px solid #211C15;
+}
+
+.kbk-stockhdr-sentiment {
+  margin-left: auto;
+  text-align: right;
+  padding-bottom: 4px;
+}
+
+@media (max-width: 640px) {
+  .kbk-stockhdr {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px 0 18px 0;
+  }
+
+  .kbk-stockhdr-sentiment {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* Scorecard header */
+.kbk-scorecard-hdr {
+  display: flex;
+  align-items: flex-end;
+  gap: 40px;
+  padding-bottom: 24px;
+  border-bottom: 1.5px solid #211C15;
+}
+
+.kbk-scorecard-weights {
+  margin-left: auto;
+  text-align: right;
+  padding-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .kbk-scorecard-hdr {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .kbk-scorecard-weights {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* Market Season Branch */
+.kbk-branch-outer {
+  display: flex;
+  gap: 48px;
+  align-items: stretch;
+  padding: 34px 0 8px 0;
+}
+
+.kbk-branch-gauge {
+  flex: 0 0 252px;
+  align-self: flex-end;
+  border-top: 2px solid #211C15;
+  padding-top: 10px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .kbk-branch-outer {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .kbk-branch-gauge {
+    flex: none;
+    width: 100%;
+  }
+}
+
+/* Fundamentals grid */
+.kbk-fund-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(33, 28, 21, 0.3);
+  border: 1px solid rgba(33, 28, 21, 0.3);
+}
+
+@media (max-width: 640px) {
+  .kbk-fund-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Scorecard pillars grid */
+.kbk-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: rgba(33, 28, 21, 0.3);
+  border: 1px solid rgba(33, 28, 21, 0.3);
+  margin-top: 36px;
+  align-items: stretch;
+}
+
+@media (max-width: 1024px) {
+  .kbk-pillars-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .kbk-pillars-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Sidebar (themes + why-this-sentiment) */
+.kbk-sidebar {
+  border-left: 1px solid rgba(33, 28, 21, 0.3);
+  padding-left: 32px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+  .kbk-stock-grid .kbk-sidebar {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid rgba(33, 28, 21, 0.3);
+    padding-top: 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .kbk-sidebar {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid rgba(33, 28, 21, 0.3);
+    padding-top: 24px;
+  }
+}
+
+/* Trending table scroll wrapper */
+.kbk-trending-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kbk-trending-inner {
+  min-width: 540px;
+}
+
+/* Branch heading */
+.kbk-branch-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 640px) {
+  .kbk-branch-heading {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+}
+
+/* Trending heading */
+.kbk-trending-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 640px) {
+  .kbk-trending-heading {
+    flex-wrap: wrap;
+    gap: 8px 14px;
+  }
+}
+
+/* Page footer */
+.kbk-footer {
+  margin-top: 56px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  border-top: 1px solid rgba(33, 28, 21, 0.3);
+  padding-top: 12px;
+}
+
+.kbk-footer-right {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .kbk-footer {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-top: 36px;
+  }
+
+  .kbk-footer-right {
+    margin-left: 0;
+  }
+}
+
+/* Scorecard footer */
+.kbk-scorecard-footer {
+  display: flex;
+  gap: 20px;
+  margin-top: 14px;
+  align-items: baseline;
+}
+
+.kbk-scorecard-footer-right {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .kbk-scorecard-footer {
+    flex-wrap: wrap;
+    gap: 8px 20px;
+  }
+
+  .kbk-scorecard-footer-right {
+    margin-left: 0;
+  }
+
+  .kbk-scorecard-hdr {
+    gap: 20px;
+  }
+}
+
+/* Header search form — remove left border on mobile when items reflow */
+.kbk-header-search {
+  border-left: 1px solid rgba(33, 28, 21, 0.35);
+  padding-left: 22px;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .kbk-header-search {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
+/* Theme ticker badges */
+.kbk-theme-tickers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Header brand — compact on mobile */
+.kbk-header-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .kbk-header-brand {
+    gap: 8px;
+  }
+}
+
+/* Falling petals — hide on mobile to prevent invisible overflow */
+@media (max-width: 640px) {
+  [data-petal] {
+    display: none;
+  }
+}
+
+/* Sidebar: also stack at 768px for dashboard grid */
+@media (max-width: 768px) {
+  .kbk-dash-grid .kbk-sidebar {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid rgba(33, 28, 21, 0.3);
+    padding-top: 24px;
+  }
 }

@@ -1,14 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
-function currentTickerFromPath(pathname: string): { ticker: string; onDetail: boolean; onScore: boolean } {
-  const detailMatch = pathname.match(/^\/stock\/([^/]+)$/);
-  if (detailMatch) return { ticker: detailMatch[1].toUpperCase(), onDetail: true, onScore: false };
-  const scoreMatch = pathname.match(/^\/stock\/([^/]+)\/scorecard$/);
-  if (scoreMatch) return { ticker: scoreMatch[1].toUpperCase(), onDetail: false, onScore: true };
-  return { ticker: "NVDA", onDetail: false, onScore: false };
+function currentTickerFromPath(pathname: string): { ticker: string; onDetail: boolean } {
+  const match = pathname.match(/^\/stock\/([^/]+)/);
+  if (match) return { ticker: match[1].toUpperCase(), onDetail: true };
+  return { ticker: "NVDA", onDetail: false };
 }
 
 const dotStyle: React.CSSProperties = {
@@ -30,8 +29,19 @@ const linkStyle: React.CSSProperties = {
 
 export default function Header() {
   const pathname = usePathname() ?? "/";
-  const { ticker, onDetail, onScore } = currentTickerFromPath(pathname);
+  const router = useRouter();
+  const { ticker, onDetail } = currentTickerFromPath(pathname);
   const onDash = pathname === "/";
+  const [query, setQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const cleaned = query.trim().replace(/[^a-zA-Z.]/g, "");
+    if (!cleaned) return;
+    router.push(`/stock/${cleaned.toLowerCase()}`);
+    setQuery("");
+  }
 
   return (
     <header
@@ -61,10 +71,38 @@ export default function Header() {
           {onDetail && <span style={dotStyle} />}
           <span>{ticker}</span>
         </Link>
-        <Link href={`/stock/${ticker.toLowerCase()}/scorecard`} style={linkStyle}>
-          {onScore && <span style={dotStyle} />}
-          <span>SCORECARD</span>
-        </Link>
+        <form
+          onSubmit={handleSearch}
+          style={{
+            borderLeft: "1px solid rgba(33,28,21,0.35)",
+            paddingLeft: 22,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value.toUpperCase())}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="検索 TICKER"
+            maxLength={5}
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 12,
+              letterSpacing: "0.12em",
+              background: "transparent",
+              border: `1px solid rgba(33,28,21,${searchFocused ? 0.5 : 0.25})`,
+              outline: "none",
+              padding: "4px 10px",
+              width: 110,
+              color: "#211C15",
+              caretColor: "#BE3B33",
+              borderRadius: 0,
+            }}
+          />
+        </form>
         <span
           style={{
             fontFamily: "var(--font-mono)",

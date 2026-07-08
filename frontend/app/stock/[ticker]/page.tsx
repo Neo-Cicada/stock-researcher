@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { getTickerProfile } from "@/lib/tickers";
 import { buildPriceSeries } from "@/lib/series";
+import { compositeScore } from "@/lib/composite";
+import ScorecardPillars from "@/components/ScorecardPillars";
 import StockHeader from "@/components/StockHeader";
 import CandlestickChart from "@/components/CandlestickChart";
 import SentimentTimeline from "@/components/SentimentTimeline";
@@ -20,6 +22,8 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   const { ticker: rawTicker } = await params;
   const profile = getTickerProfile(rawTicker);
   const series = buildPriceSeries(profile);
+  const composite = compositeScore(profile.pillars);
+  const weightsLine = profile.pillars.map((p) => `${p.key.toUpperCase()} ${p.weight}`).join(" · ");
 
   const subheadingStyle: React.CSSProperties = { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 };
   const subLabelStyle: React.CSSProperties = { fontSize: 10, letterSpacing: "0.22em", opacity: 0.6 };
@@ -94,9 +98,29 @@ export default async function StockDetailPage({ params }: { params: Params }) {
         <WhyThisSentiment posts={profile.posts} insufficient={profile.insufficient} quietNote={profile.quietNote} />
       </section>
 
-      <footer style={{ marginTop: 48, borderTop: "1px solid rgba(33,28,21,0.3)", paddingTop: 12 }}>
-        <span style={{ fontSize: 10.5, letterSpacing: "0.16em", opacity: 0.5 }}>RESEARCH, NOT INVESTMENT ADVICE.</span>
-      </footer>
+      <section style={{ marginTop: 52, borderTop: "1.5px solid #211C15", paddingTop: 28 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 40, paddingBottom: 24, borderBottom: "1.5px solid #211C15" }}>
+          <div>
+            <div style={{ fontSize: 11, letterSpacing: "0.22em", opacity: 0.55, marginBottom: 2 }}>SCORECARD · {profile.ticker}</div>
+            <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 800, fontSize: 32, margin: 0 }}>Five-Petal Score</h2>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, paddingBottom: 4 }}>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 48, fontWeight: 600, lineHeight: 1 }}>{composite}</span>
+            <span style={{ fontSize: 12, opacity: 0.55 }}>of 100 · composite</span>
+          </div>
+          <div style={{ marginLeft: "auto", textAlign: "right", paddingBottom: 6 }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.2em", opacity: 0.55, marginBottom: 5 }}>WEIGHTS</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: 0.8 }}>{weightsLine}</div>
+          </div>
+        </div>
+
+        <ScorecardPillars pillars={profile.pillars} />
+
+        <div style={{ display: "flex", gap: 20, marginTop: 14, alignItems: "baseline" }}>
+          <span style={{ fontSize: 11, opacity: 0.5 }}>Tap a pillar to see its exact inputs. Fill level = score.</span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.4, marginLeft: "auto" }}>model v2.3 · rebalanced monthly</span>
+        </div>
+      </section>
     </main>
   );
 }

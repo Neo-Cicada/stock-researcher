@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700;800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #F5F0E5; }
+  a { color: #211C15; text-decoration: none; }
+  a:hover { color: #C3423F; }
+  ::selection { background: #E8B4B8; color: #211C15; }
+  @keyframes kabuka-drift-a {
+    0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+    8%   { opacity: 0.85; }
+    85%  { opacity: 0.7; }
+    100% { transform: translate(-150px, 360px) rotate(230deg); opacity: 0; }
+  }
+  @keyframes kabuka-drift-b {
+    0%   { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+    10%  { opacity: 0.8; }
+    85%  { opacity: 0.6; }
+    100% { transform: translate(90px, 330px) rotate(-190deg); opacity: 0; }
+  }
+  @keyframes kabuka-inkfade {
+    0%, 100% { opacity: 0.14; }
+    50%      { opacity: 0.42; }
+  }
+  [data-skel] { animation: kabuka-inkfade 1.8s ease-in-out infinite; }
+  [data-skel-row]:nth-child(2n) [data-skel] { animation-delay: 0.35s; }
+  [data-skel-row]:nth-child(3n) [data-skel] { animation-delay: 0.6s; }
+  @media (prefers-reduced-motion: reduce) {
+    [data-petal] { animation: none !important; opacity: 0 !important; }
+    [data-skel] { animation: none !important; opacity: 0.25 !important; }
+  }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: #F5F0E5; color: #211C15; font-family: 'IBM Plex Sans', sans-serif; position: relative; overflow-x: hidden;">
+
+  <!-- washi paper grain -->
+  <svg aria-hidden="true" style="position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.045; z-index: 40;" xmlns="http://www.w3.org/2000/svg">
+    <filter id="kbk-grain"><feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="2" stitchTiles="stitch"></feTurbulence><feColorMatrix type="saturate" values="0"></feColorMatrix></filter>
+    <rect width="100%" height="100%" filter="url(#kbk-grain)"></rect>
+  </svg>
+
+  <!-- ==================== masthead ==================== -->
+  <header style="display: flex; align-items: baseline; gap: 28px; padding: 26px 56px 20px 96px; border-bottom: 1px solid rgba(33,28,21,0.35);">
+    <div style="display: flex; align-items: baseline; gap: 14px;">
+      <span style="font-family: 'Shippori Mincho', serif; font-weight: 800; font-size: 30px; letter-spacing: 0.06em;">株価</span>
+      <span style="font-family: 'Shippori Mincho', serif; font-weight: 600; font-size: 16px; letter-spacing: 0.42em;">KABUKA</span>
+    </div>
+    <span style="font-size: 11px; letter-spacing: 0.14em; opacity: 0.55;">RICE-PAPER MARKET RESEARCH</span>
+    <nav style="margin-left: auto; display: flex; gap: 30px; align-items: center;">
+      <a href="#" onClick="{{ goDash }}" style="display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: 0.18em; cursor: pointer;">
+        <sc-if value="{{ onDash }}" hint-placeholder-val="{{ true }}"><span style="width: 7px; height: 7px; background: #BE3B33; border-radius: 50%; display: inline-block;"></span></sc-if>
+        <span>DASHBOARD</span>
+      </a>
+      <a href="#" onClick="{{ goDetail }}" style="display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: 0.18em; cursor: pointer;">
+        <sc-if value="{{ onDetail }}" hint-placeholder-val="{{ false }}"><span style="width: 7px; height: 7px; background: #BE3B33; border-radius: 50%; display: inline-block;"></span></sc-if>
+        <span>NVDA</span>
+      </a>
+      <a href="#" onClick="{{ goScore }}" style="display: flex; align-items: center; gap: 7px; font-size: 12px; letter-spacing: 0.18em; cursor: pointer;">
+        <sc-if value="{{ onScore }}" hint-placeholder-val="{{ false }}"><span style="width: 7px; height: 7px; background: #BE3B33; border-radius: 50%; display: inline-block;"></span></sc-if>
+        <span>SCORECARD</span>
+      </a>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: 0.6; border-left: 1px solid rgba(33,28,21,0.35); padding-left: 22px;">8 Jul 2026 · 開場中 open</span>
+    </nav>
+  </header>
+
+  <!-- ==================== DASHBOARD ==================== -->
+  <sc-if value="{{ onDash }}" hint-placeholder-val="{{ true }}">
+  <main data-screen-label="Dashboard" style="position: relative; max-width: 1280px; margin: 0 auto; padding: 0 56px 80px 96px;">
+
+    <span style="position: absolute; left: 34px; top: 52px; writing-mode: vertical-rl; font-family: 'Shippori Mincho', serif; font-size: 15px; letter-spacing: 0.5em; opacity: 0.5;">相場の季節</span>
+
+    <!-- ===== Market Season Branch ===== -->
+    <section style="display: flex; gap: 48px; align-items: stretch; padding: 34px 0 8px 0;">
+      <div style="flex: 1 1 auto; position: relative; min-width: 0;">
+        <div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 4px;">
+          <h1 style="font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 21px; margin: 0; letter-spacing: 0.04em;">The Market Season</h1>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: {{ seasonColor }};">{{ seasonLabel }}</span>
+          <span style="font-size: 11px; opacity: 0.5; letter-spacing: 0.1em;">{{ seasonNote }}</span>
+        </div>
+        <svg viewBox="0 0 1000 150" style="width: 100%; height: auto; display: block;" xmlns="http://www.w3.org/2000/svg">
+          <path d="M -12 130 C 90 120, 170 98, 300 93 C 430 88, 520 71, 640 65 C 760 59, 862 66, 1012 47" fill="none" stroke="#2A241C" stroke-width="4.6" stroke-linecap="round"></path>
+          <path d="M -12 132 C 100 124, 200 100, 330 92 C 460 84, 560 68, 690 62 C 800 57, 890 62, 1012 49" fill="none" stroke="#2A241C" stroke-width="1.6" stroke-linecap="round" opacity="0.55"></path>
+          <sc-for list="{{ twigs }}" as="t" hint-placeholder-count="12">
+            <path d="{{ t.d }}" fill="none" stroke="#2A241C" stroke-width="1.5" stroke-linecap="round" opacity="0.85"></path>
+          </sc-for>
+          <sc-for list="{{ buds }}" as="bud" hint-placeholder-count="3">
+            <g transform="{{ bud.tf }}">
+              <ellipse cx="0" cy="-3" rx="2" ry="3.4" fill="#C99A98" opacity="0.9"></ellipse>
+              <ellipse cx="0" cy="-2" rx="1.1" ry="2" fill="#2A241C" opacity="0.35"></ellipse>
+            </g>
+          </sc-for>
+          <sc-for list="{{ blossoms }}" as="b" hint-placeholder-count="8">
+            <g transform="{{ b.tf }}">
+              <ellipse cx="0" cy="-4.6" rx="2.8" ry="4.7" fill="{{ b.color }}" opacity="0.9"></ellipse>
+              <ellipse cx="0" cy="-4.6" rx="2.8" ry="4.7" fill="{{ b.color }}" opacity="0.9" transform="rotate(72)"></ellipse>
+              <ellipse cx="0" cy="-4.6" rx="2.8" ry="4.7" fill="{{ b.color }}" opacity="0.9" transform="rotate(144)"></ellipse>
+              <ellipse cx="0" cy="-4.6" rx="2.8" ry="4.7" fill="{{ b.color }}" opacity="0.9" transform="rotate(216)"></ellipse>
+              <ellipse cx="0" cy="-4.6" rx="2.8" ry="4.7" fill="{{ b.color }}" opacity="0.9" transform="rotate(288)"></ellipse>
+              <circle r="1.7" fill="#E8B4B8"></circle>
+            </g>
+          </sc-for>
+        </svg>
+        <!-- drifting petals -->
+        <div data-petal style="position: absolute; left: 38%; top: 46px; pointer-events: none; opacity: 0; animation: kabuka-drift-a 17s linear infinite;">
+          <svg width="11" height="13" viewBox="0 0 10 12"><path d="M5 0 C8.6 3, 8.6 8, 5 12 C1.4 8, 1.4 3, 5 0 Z" fill="{{ petalColor }}" opacity="0.8"></path></svg>
+        </div>
+        <div data-petal style="position: absolute; left: 72%; top: 30px; pointer-events: none; opacity: 0; animation: kabuka-drift-b 23s linear infinite; animation-delay: 6s;">
+          <svg width="9" height="11" viewBox="0 0 10 12"><path d="M5 0 C8.6 3, 8.6 8, 5 12 C1.4 8, 1.4 3, 5 0 Z" fill="{{ petalColor }}" opacity="0.8"></path></svg>
+        </div>
+      </div>
+
+      <!-- gauge table -->
+      <aside style="flex: 0 0 252px; align-self: flex-end; border-top: 2px solid #211C15; padding-top: 10px; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid rgba(33,28,21,0.3);">
+          <span style="font-size: 10px; letter-spacing: 0.22em; opacity: 0.6;">SEASON GAUGE</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600;">{{ fearGreedText }}<span style="font-size: 10px; opacity: 0.5;"> /100</span></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(33,28,21,0.16); font-size: 11.5px;">
+          <span style="opacity: 0.65;">VIX</span><span style="font-family: 'IBM Plex Mono', monospace;">14.2 <span style="color: #4A7C59;">−0.8</span></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(33,28,21,0.16); font-size: 11.5px;">
+          <span style="opacity: 0.65;">Put / Call</span><span style="font-family: 'IBM Plex Mono', monospace;">0.62</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(33,28,21,0.16); font-size: 11.5px;">
+          <span style="opacity: 0.65;">Breadth (adv)</span><span style="font-family: 'IBM Plex Mono', monospace;">71%</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 7px 0; font-size: 11.5px;">
+          <span style="opacity: 0.65;">Social aggregate</span><span style="font-family: 'IBM Plex Mono', monospace; color: {{ petalColor }};">{{ socialText }}</span>
+        </div>
+      </aside>
+    </section>
+
+    <!-- brush divider -->
+    <svg viewBox="0 0 1100 8" preserveAspectRatio="none" style="width: 100%; height: 7px; display: block; margin: 10px 0 30px 0;"><path d="M0 5 C 180 2, 420 7, 640 4 C 820 1.5, 980 5.5, 1100 3.5" fill="none" stroke="#211C15" stroke-width="1.6" stroke-linecap="round" opacity="0.75"></path></svg>
+
+    <!-- ===== trending + themes ===== -->
+    <section style="display: grid; grid-template-columns: 1fr 316px; gap: 56px; align-items: start;">
+
+      <!-- trending table -->
+      <div>
+        <div style="display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px;">
+          <h2 style="font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; margin: 0;">Trending Tickers</h2>
+          <span style="font-family: 'Shippori Mincho', serif; background: #BE3B33; color: #F5F0E5; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; padding: 4px 7px 3px; transform: rotate(-2.5deg); display: inline-block;">話題</span>
+          <span style="font-size: 11px; opacity: 0.5;">ranked by mention velocity · 24h</span>
+        </div>
+
+        <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <sc-for list="{{ skelRows }}" as="sk" hint-placeholder-count="8">
+              <div data-skel-row style="display: flex; gap: 16px; align-items: center; padding: 11px 0; border-bottom: 1px solid rgba(33,28,21,0.12);">
+                <span data-skel style="height: 9px; width: 46px; background: #211C15;"></span>
+                <span data-skel style="height: 9px; flex: 1 1 auto; background: #211C15;"></span>
+                <span data-skel style="height: 9px; width: 64px; background: #211C15;"></span>
+                <span data-skel style="height: 9px; width: 88px; background: #211C15;"></span>
+              </div>
+            </sc-for>
+            <div style="font-family: 'Shippori Mincho', serif; font-size: 12px; opacity: 0.45; padding-top: 14px; letter-spacing: 0.1em;">墨を磨っています — grinding the ink…</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ notLoading }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="display: grid; grid-template-columns: 58px 1fr 78px 62px 72px 62px 72px 76px; gap: 10px; font-size: 9.5px; letter-spacing: 0.18em; opacity: 0.55; padding-bottom: 7px; border-bottom: 1.5px solid #211C15;">
+              <span>TICKER</span><span></span><span style="text-align: right;">PRICE</span><span style="text-align: right;">DAY</span><span style="text-align: right;">MENTIONS</span><span style="text-align: right;">VELOCITY</span><span style="text-align: center;">SENTIMENT</span><span style="text-align: right;">7-DAY</span>
+            </div>
+            <sc-for list="{{ rows }}" as="row" hint-placeholder-count="8">
+              <div onClick="{{ goDetail }}" style="display: grid; grid-template-columns: 58px 1fr 78px 62px 72px 62px 72px 76px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(33,28,21,0.14); cursor: pointer;" style-hover="background: rgba(33,28,21,0.045);">
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; font-weight: 600;">{{ row.ticker }}</span>
+                <span style="font-size: 11px; opacity: 0.55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ row.name }}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums;">{{ row.price }}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; text-align: right; color: {{ row.dayColor }};">{{ row.day }}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; text-align: right; opacity: 0.8;">{{ row.mentions }}</span>
+                <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; text-align: right;">{{ row.velocity }}</span>
+                <span style="display: flex; justify-content: center;">
+                  <svg width="58" height="15" viewBox="0 0 58 15">
+                    <sc-for list="{{ row.petals }}" as="pe" hint-placeholder-count="5">
+                      <ellipse cx="{{ pe.cx }}" cy="7.5" rx="3.4" ry="5.6" fill="{{ pe.fill }}"></ellipse>
+                    </sc-for>
+                  </svg>
+                </span>
+                <span style="display: flex; justify-content: flex-end;">
+                  <svg width="68" height="18" viewBox="0 0 68 18"><path d="{{ row.spark }}" fill="none" stroke="#211C15" stroke-width="1.2" stroke-linecap="round" opacity="0.72"></path></svg>
+                </span>
+              </div>
+            </sc-for>
+            <div style="font-size: 10.5px; opacity: 0.45; padding-top: 10px; display: flex; gap: 18px;">
+              <span>Sentiment petals: 5 = strongly bullish crowd</span>
+              <span style="margin-left: auto; font-family: 'IBM Plex Mono', monospace;">sources: reddit · stocktwits · x</span>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- themes column -->
+      <aside style="border-left: 1px solid rgba(33,28,21,0.3); padding-left: 32px;">
+        <h2 style="font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; margin: 0 0 18px 0;">Today's Themes</h2>
+
+        <article style="padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid rgba(33,28,21,0.18);">
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="font-family: 'Shippori Mincho', serif; background: #BE3B33; color: #F5F0E5; font-size: 13px; font-weight: 700; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transform: rotate(-3deg); flex: 0 0 auto;">勢</span>
+            <h3 style="font-family: 'Shippori Mincho', serif; font-size: 15px; font-weight: 700; margin: 0; line-height: 1.35;">AI capex re-acceleration</h3>
+          </div>
+          <p style="font-size: 12px; line-height: 1.55; margin: 8px 0 10px 0; opacity: 0.78;">Hyperscaler orders read stronger than guided; chip names lead mentions for a third session.</p>
+          <div style="display: flex; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; border: 1px solid rgba(33,28,21,0.4); padding: 2px 7px;">NVDA</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; border: 1px solid rgba(33,28,21,0.4); padding: 2px 7px;">SMCI</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; border: 1px solid rgba(33,28,21,0.4); padding: 2px 7px;">AMD</span>
+          </div>
+        </article>
+
+        <article style="padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid rgba(33,28,21,0.18);">
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="font-family: 'Shippori Mincho', serif; background: #BE3B33; color: #F5F0E5; font-size: 13px; font-weight: 700; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transform: rotate(2deg); flex: 0 0 auto;">金</span>
+            <h3 style="font-family: 'Shippori Mincho', serif; font-size: 15px; font-weight: 700; margin: 0; line-height: 1.35;">Rate-cut repricing</h3>
+          </div>
+          <p style="font-size: 12px; line-height: 1.55; margin: 8px 0 10px 0; opacity: 0.78;">September odds jumped after CPI; rate-sensitive fintech chatter turned constructive overnight.</p>
+          <div style="display: flex; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; border: 1px solid rgba(33,28,21,0.4); padding: 2px 7px;">SOFI</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; border: 1px solid rgba(33,28,21,0.4); padding: 2px 7px;">COIN</span>
+          </div>
+        </article>
+
+        <article style="padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid rgba(33,28,21,0.18);">
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="font-family: 'Shippori Mincho', serif; background: #BE3B33; color: #F5F0E5; font-size: 13px; font-weight: 700; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transform: rotate(-2deg); flex: 0 0 auto;">噂</span>
+            <h3 style="font-family: 'Shippori Mincho', serif; font-size: 15px; font-weight: 700; margin: 0; line-height: 1.35;">Squeeze watch</h3>
+          </div>
+          <p style="font-size: 12px; line-height: 1.55; margin: 8px 0 10px 0; opacity: 0.78;">Short interest above 20% meets rising call volume; velocity high but sentiment split.</p>
+          <div style="display: flex; gap: 6px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; border: 1px solid rgba(33,28,21,0.4); padding: 2px 7px;">GME</span>
+          </div>
+        </article>
+
+        <!-- insufficient data state -->
+        <article style="padding: 6px 0 4px 0; text-align: left;">
+          <svg width="92" height="44" viewBox="0 0 92 44" style="display: block; margin-bottom: 6px;">
+            <path d="M2 40 C 22 36, 40 28, 58 22 C 72 17, 82 12, 90 6" fill="none" stroke="#2A241C" stroke-width="2.4" stroke-linecap="round"></path>
+            <path d="M34 30 Q 38 22, 36 14" fill="none" stroke="#2A241C" stroke-width="1.3" stroke-linecap="round"></path>
+            <path d="M62 20 Q 68 16, 68 8" fill="none" stroke="#2A241C" stroke-width="1.1" stroke-linecap="round"></path>
+          </svg>
+          <div style="font-family: 'Shippori Mincho', serif; font-size: 14.5px; font-style: italic; opacity: 0.75;">Too quiet to read</div>
+          <div style="font-size: 11px; opacity: 0.45; margin-top: 3px;">Small-caps theme — fewer than 40 mentions today.</div>
+        </article>
+      </aside>
+    </section>
+
+    <footer style="margin-top: 56px; display: flex; align-items: baseline; gap: 16px; border-top: 1px solid rgba(33,28,21,0.3); padding-top: 12px;">
+      <span style="font-size: 10.5px; letter-spacing: 0.16em; opacity: 0.5;">RESEARCH, NOT INVESTMENT ADVICE.</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; opacity: 0.4; margin-left: auto;">data delayed 15 min</span>
+    </footer>
+  </main>
+  </sc-if>
+
+  <!-- ==================== STOCK DETAIL ==================== -->
+  <sc-if value="{{ onDetail }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Stock Detail — NVDA" style="position: relative; max-width: 1280px; margin: 0 auto; padding: 0 56px 80px 96px;">
+
+    <span style="position: absolute; left: 34px; top: 52px; writing-mode: vertical-rl; font-family: 'Shippori Mincho', serif; font-size: 15px; letter-spacing: 0.5em; opacity: 0.5;">銘柄研究</span>
+
+    <!-- header -->
+    <section style="display: flex; align-items: flex-end; gap: 34px; padding: 38px 0 22px 0; border-bottom: 1.5px solid #211C15;">
+      <div>
+        <div style="font-size: 11px; letter-spacing: 0.22em; opacity: 0.55; margin-bottom: 2px;">NVIDIA CORP · NASDAQ</div>
+        <h1 style="font-family: 'Shippori Mincho', serif; font-weight: 800; font-size: 76px; line-height: 0.95; margin: 0; letter-spacing: 0.02em;">NVDA</h1>
+      </div>
+      <div style="padding-bottom: 6px;">
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums;">171.36</div>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; color: #4A7C59;">+5.67 · +3.42%</div>
+      </div>
+      <div style="margin-left: auto; text-align: right; padding-bottom: 4px;">
+        <div style="font-size: 10px; letter-spacing: 0.2em; opacity: 0.55; margin-bottom: 4px;">COMPOSITE SENTIMENT · 84 BULLISH</div>
+        <svg width="150" height="46" viewBox="0 0 150 46">
+          <path d="M4 42 C 40 36, 80 26, 146 12" fill="none" stroke="#2A241C" stroke-width="2.6" stroke-linecap="round"></path>
+          <path d="M52 32 Q 58 24, 56 18" fill="none" stroke="#2A241C" stroke-width="1.2" stroke-linecap="round"></path>
+          <g transform="translate(56,15)"><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(72)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(144)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(216)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(288)"></ellipse><circle r="1.3" fill="#E8B4B8"></circle></g>
+          <g transform="translate(104,22)"><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(72)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(144)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(216)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(288)"></ellipse><circle r="1.3" fill="#E8B4B8"></circle></g>
+          <g transform="translate(138,11)"><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(72)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(144)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(216)"></ellipse><ellipse cx="0" cy="-3.4" rx="2.1" ry="3.5" fill="#4A7C59" opacity="0.9" transform="rotate(288)"></ellipse><circle r="1.3" fill="#E8B4B8"></circle></g>
+        </svg>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: 1fr 296px; gap: 52px; align-items: start; padding-top: 30px;">
+
+      <!-- charts -->
+      <div>
+        <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px;">
+          <span style="font-size: 10px; letter-spacing: 0.22em; opacity: 0.6;">PRICE · 42 SESSIONS</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; opacity: 0.5;">candles: green = up · vermilion = down</span>
+        </div>
+        <svg viewBox="0 0 760 240" style="width: 100%; height: auto; display: block;">
+          <sc-for list="{{ grid }}" as="g" hint-placeholder-count="3">
+            <line x1="0" x2="712" y1="{{ g.y }}" y2="{{ g.y }}" stroke="#211C15" stroke-width="0.5" opacity="0.22"></line>
+            <text x="718" y="{{ g.ty }}" font-family="IBM Plex Mono, monospace" font-size="10" fill="#211C15" opacity="0.55">{{ g.label }}</text>
+          </sc-for>
+          <sc-for list="{{ candles }}" as="c" hint-placeholder-count="20">
+            <line x1="{{ c.cx }}" x2="{{ c.cx }}" y1="{{ c.wy1 }}" y2="{{ c.wy2 }}" stroke="{{ c.color }}" stroke-width="1"></line>
+            <rect x="{{ c.bx }}" y="{{ c.by }}" width="10" height="{{ c.bh }}" fill="{{ c.fill }}" stroke="{{ c.color }}" stroke-width="1.1"></rect>
+          </sc-for>
+        </svg>
+
+        <div style="display: flex; align-items: baseline; gap: 12px; margin: 18px 0 4px 0;">
+          <span style="font-size: 10px; letter-spacing: 0.22em; opacity: 0.6;">CROWD SENTIMENT</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; opacity: 0.5;">−1 … +1, same axis</span>
+        </div>
+        <svg viewBox="0 0 760 64" style="width: 100%; height: auto; display: block;">
+          <line x1="0" x2="712" y1="32" y2="32" stroke="#211C15" stroke-width="0.6" opacity="0.3" stroke-dasharray="2 4"></line>
+          <text x="718" y="14" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#4A7C59">強気</text>
+          <text x="718" y="58" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#C3423F">弱気</text>
+          <path d="{{ sentPath }}" fill="none" stroke="#211C15" stroke-width="1.5" stroke-linecap="round" opacity="0.85"></path>
+          <circle cx="{{ sentLastX }}" cy="{{ sentLastY }}" r="2.6" fill="#4A7C59"></circle>
+        </svg>
+
+        <div style="display: flex; align-items: baseline; gap: 12px; margin: 14px 0 4px 0;">
+          <span style="font-size: 10px; letter-spacing: 0.22em; opacity: 0.6;">MENTION VOLUME</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; opacity: 0.5;">posts / session</span>
+        </div>
+        <svg viewBox="0 0 760 56" style="width: 100%; height: auto; display: block;">
+          <line x1="0" x2="712" y1="52" y2="52" stroke="#211C15" stroke-width="0.8" opacity="0.4"></line>
+          <sc-for list="{{ vols }}" as="v" hint-placeholder-count="20">
+            <rect x="{{ v.x }}" y="{{ v.y }}" width="10" height="{{ v.h }}" fill="#211C15" opacity="0.4"></rect>
+          </sc-for>
+          <sc-for list="{{ dateTicks }}" as="dt" hint-placeholder-count="3">
+            <text x="{{ dt.x }}" y="46" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#211C15" opacity="0.55">{{ dt.label }}</text>
+          </sc-for>
+        </svg>
+
+        <!-- fundamentals -->
+        <div style="margin-top: 34px;">
+          <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px;">
+            <h2 style="font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 17px; margin: 0;">Fundamentals</h2>
+            <span style="font-size: 10.5px; opacity: 0.5;">TTM unless noted</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: rgba(33,28,21,0.3); border: 1px solid rgba(33,28,21,0.3);">
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">P/E</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">63.2</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">FWD P/E</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">34.8</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">PEG</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">1.12</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">REV GROWTH</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #4A7C59;">+62.4%</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">GROSS MARGIN</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">75.9%</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">OP MARGIN</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">62.1%</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">ROE</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">91.3%</div></div>
+            <div style="background: #F5F0E5; padding: 12px 14px;"><div style="font-size: 9.5px; letter-spacing: 0.16em; opacity: 0.55; margin-bottom: 4px;">NET CASH</div><div style="font-family: 'IBM Plex Mono', monospace; font-size: 16px;">$38.9B</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right rail: why this sentiment -->
+      <aside style="border-left: 1px solid rgba(33,28,21,0.3); padding-left: 30px;">
+        <h2 style="font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 17px; margin: 0 0 4px 0;">Why this sentiment</h2>
+        <div style="font-size: 11px; opacity: 0.5; margin-bottom: 16px;">representative posts, weighted by reach</div>
+        <sc-for list="{{ posts }}" as="p" hint-placeholder-count="4">
+          <article style="padding-bottom: 15px; margin-bottom: 15px; border-bottom: 1px solid rgba(33,28,21,0.16);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; opacity: 0.65;">{{ p.src }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; opacity: 0.4; margin-left: auto;">{{ p.time }}</span>
+            </div>
+            <p style="font-size: 12.5px; line-height: 1.5; margin: 0 0 8px 0;">{{ p.text }}</p>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <svg width="52" height="13" viewBox="0 0 58 15">
+                <sc-for list="{{ p.petals }}" as="pp" hint-placeholder-count="5">
+                  <ellipse cx="{{ pp.cx }}" cy="7.5" rx="3.4" ry="5.6" fill="{{ pp.fill }}"></ellipse>
+                </sc-for>
+              </svg>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: {{ p.scoreColor }};">{{ p.scoreLabel }}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; opacity: 0.5; margin-left: auto;">{{ p.up }}</span>
+            </div>
+          </article>
+        </sc-for>
+        <div style="padding-top: 2px;">
+          <svg width="80" height="38" viewBox="0 0 92 44" style="display: block; margin-bottom: 5px; opacity: 0.8;">
+            <path d="M2 40 C 22 36, 40 28, 58 22 C 72 17, 82 12, 90 6" fill="none" stroke="#2A241C" stroke-width="2.2" stroke-linecap="round"></path>
+            <path d="M34 30 Q 38 22, 36 14" fill="none" stroke="#2A241C" stroke-width="1.2" stroke-linecap="round"></path>
+          </svg>
+          <div style="font-family: 'Shippori Mincho', serif; font-size: 13px; font-style: italic; opacity: 0.7;">Too quiet to read</div>
+          <div style="font-size: 10.5px; opacity: 0.45; margin-top: 2px;">X/Twitter feed paused — no fresh posts in 3h.</div>
+        </div>
+      </aside>
+    </section>
+
+    <footer style="margin-top: 48px; border-top: 1px solid rgba(33,28,21,0.3); padding-top: 12px;">
+      <span style="font-size: 10.5px; letter-spacing: 0.16em; opacity: 0.5;">RESEARCH, NOT INVESTMENT ADVICE.</span>
+    </footer>
+  </main>
+  </sc-if>
+
+  <!-- ==================== SCORECARD ==================== -->
+  <sc-if value="{{ onScore }}" hint-placeholder-val="{{ false }}">
+  <main data-screen-label="Scorecard — NVDA" style="position: relative; max-width: 1280px; margin: 0 auto; padding: 0 56px 80px 96px;">
+
+    <span style="position: absolute; left: 34px; top: 52px; writing-mode: vertical-rl; font-family: 'Shippori Mincho', serif; font-size: 15px; letter-spacing: 0.5em; opacity: 0.5;">五弁の評</span>
+
+    <section style="display: flex; align-items: flex-end; gap: 40px; padding: 38px 0 24px 0; border-bottom: 1.5px solid #211C15;">
+      <div>
+        <div style="font-size: 11px; letter-spacing: 0.22em; opacity: 0.55; margin-bottom: 2px;">SCORECARD · NVDA</div>
+        <h1 style="font-family: 'Shippori Mincho', serif; font-weight: 800; font-size: 40px; margin: 0;">Five-Petal Score</h1>
+      </div>
+      <div style="display: flex; align-items: baseline; gap: 10px; padding-bottom: 4px;">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 56px; font-weight: 600; line-height: 1;">75</span>
+        <span style="font-size: 12px; opacity: 0.55;">of 100 · composite</span>
+      </div>
+      <div style="margin-left: auto; text-align: right; padding-bottom: 6px;">
+        <div style="font-size: 10px; letter-spacing: 0.2em; opacity: 0.55; margin-bottom: 5px;">WEIGHTS</div>
+        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; opacity: 0.8;">VAL 20 · GRW 25 · QLT 20 · MOM 20 · SNT 15</div>
+        <div style="font-size: 10.5px; letter-spacing: 0.14em; opacity: 0.5; margin-top: 6px;">RESEARCH, NOT INVESTMENT ADVICE.</div>
+      </div>
+    </section>
+
+    <section style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: rgba(33,28,21,0.3); border: 1px solid rgba(33,28,21,0.3); margin-top: 36px; align-items: stretch;">
+      <sc-for list="{{ pillars }}" as="p" hint-placeholder-count="5">
+        <div onClick="{{ togglePillar }}" data-pillar="{{ p.key }}" style="background: #F5F0E5; padding: 22px 18px 16px; cursor: pointer; display: flex; flex-direction: column;" style-hover="background: #EFE9DB;">
+          <svg width="66" height="66" viewBox="0 0 66 66" style="display: block; margin-bottom: 12px; pointer-events: none;">
+            <defs>
+              <clipPath id="{{ p.cid }}">
+                <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" transform="translate(33,35)"></ellipse>
+                <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" transform="translate(33,35) rotate(72)"></ellipse>
+                <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" transform="translate(33,35) rotate(144)"></ellipse>
+                <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" transform="translate(33,35) rotate(216)"></ellipse>
+                <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" transform="translate(33,35) rotate(288)"></ellipse>
+              </clipPath>
+            </defs>
+            <g transform="translate(33,35)">
+              <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" fill="#E3DCCA" stroke="#211C15" stroke-width="0.8"></ellipse>
+              <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" fill="#E3DCCA" stroke="#211C15" stroke-width="0.8" transform="rotate(72)"></ellipse>
+              <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" fill="#E3DCCA" stroke="#211C15" stroke-width="0.8" transform="rotate(144)"></ellipse>
+              <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" fill="#E3DCCA" stroke="#211C15" stroke-width="0.8" transform="rotate(216)"></ellipse>
+              <ellipse cx="0" cy="-13" rx="8.6" ry="13.6" fill="#E3DCCA" stroke="#211C15" stroke-width="0.8" transform="rotate(288)"></ellipse>
+            </g>
+            <rect x="0" y="{{ p.rectY }}" width="66" height="{{ p.rectH }}" fill="#2A241C" clip-path="{{ p.clipUrl }}"></rect>
+            <g transform="translate(33,35)">
+              <circle r="3.4" fill="#E8B4B8" stroke="#211C15" stroke-width="0.6"></circle>
+            </g>
+          </svg>
+          <div style="display: flex; align-items: baseline; gap: 8px;">
+            <h3 style="font-family: 'Shippori Mincho', serif; font-size: 16px; font-weight: 700; margin: 0;">{{ p.name }}</h3>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 18px; font-weight: 600; margin-left: auto;">{{ p.score }}</span>
+          </div>
+          <div style="font-size: 10px; letter-spacing: 0.14em; opacity: 0.5; margin-top: 3px;">WEIGHT {{ p.weight }}%</div>
+          <div style="font-size: 10.5px; opacity: 0.55; margin-top: 10px; border-top: 1px solid rgba(33,28,21,0.16); padding-top: 8px;">{{ p.hintText }}</div>
+          <sc-if value="{{ p.isExpanded }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 10px;">
+              <sc-for list="{{ p.inputs }}" as="inp" hint-placeholder-count="4">
+                <div style="display: flex; justify-content: space-between; gap: 8px; padding: 4.5px 0; border-bottom: 1px solid rgba(33,28,21,0.12); font-size: 11px;">
+                  <span style="opacity: 0.65;">{{ inp.k }}</span>
+                  <span style="font-family: 'IBM Plex Mono', monospace;">{{ inp.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </section>
+
+    <div style="display: flex; gap: 20px; margin-top: 14px; align-items: baseline;">
+      <span style="font-size: 11px; opacity: 0.5;">Tap a pillar to see its exact inputs. Fill level = score.</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; opacity: 0.4; margin-left: auto;">model v2.3 · rebalanced monthly</span>
+    </div>
+  </main>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;fearGreed&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 68, &quot;min&quot;: 0, &quot;max&quot;: 100, &quot;step&quot;: 1, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Market Season&quot; },
+  &quot;direction&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;bullish&quot;, &quot;options&quot;: [&quot;bullish&quot;, &quot;bearish&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Market Season&quot; },
+  &quot;loading&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;States&quot; }
+}">
+class Component extends DCLogic {
+  state = { screen: 'dashboard', expanded: null };
+
+  data() {
+    if (this._d) return this._d;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+    // ---- candles / sentiment / volume (deterministic walk) ----
+    let s = 42;
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    const n = 42;
+    let close = 118, sent = 0.1;
+    const raw = [];
+    for (let i = 0; i < n; i++) {
+      const drift = i > 28 ? 0.012 : 0.004;
+      const ret = (rnd() - 0.47) * 0.045 + drift;
+      const open = close;
+      close = open * (1 + ret);
+      const high = Math.max(open, close) * (1 + rnd() * 0.012);
+      const low = Math.min(open, close) * (1 - rnd() * 0.012);
+      sent = clamp(sent * 0.72 + ret * 10 + (rnd() - 0.5) * 0.3, -1, 1);
+      const vol = 160 + Math.abs(ret) * 5200 + rnd() * 140;
+      raw.push({ open, close, high, low, sent, vol });
+    }
+    let minP = Infinity, maxP = -Infinity, maxV = 0;
+    raw.forEach(r => { minP = Math.min(minP, r.low); maxP = Math.max(maxP, r.high); maxV = Math.max(maxV, r.vol); });
+    const yOf = p => 12 + (maxP - p) / (maxP - minP) * 216;
+    const step = (712 - 8) / n;
+    const candles = raw.map((r, i) => {
+      const up = r.close >= r.open;
+      const cx = 8 + i * step + 5;
+      const byTop = yOf(Math.max(r.open, r.close));
+      const byBot = yOf(Math.min(r.open, r.close));
+      return {
+        cx: cx, bx: cx - 5,
+        wy1: yOf(r.high), wy2: yOf(r.low),
+        by: byTop, bh: Math.max(1.5, byBot - byTop),
+        color: up ? '#4A7C59' : '#C3423F',
+        fill: up ? '#F5F0E5' : '#C3423F'
+      };
+    });
+    const grid = [0.85, 0.5, 0.15].map(k => {
+      const p = minP + (maxP - minP) * k;
+      const y = yOf(p);
+      return { y: y, ty: y + 3.5, label: '$' + p.toFixed(0) };
+    });
+    let sentPath = '';
+    raw.forEach((r, i) => {
+      const x = (8 + i * step + 5).toFixed(1);
+      const y = (32 - r.sent * 25).toFixed(1);
+      sentPath += (i === 0 ? 'M' : ' L') + x + ' ' + y;
+    });
+    const lastX = 8 + (n - 1) * step + 5;
+    const vols = raw.map((r, i) => {
+      const h = Math.max(1.5, (r.vol / maxV) * 44);
+      return { x: 8 + i * step, y: 52 - h, h: h };
+    });
+    const dateTicks = [
+      { x: 8, label: '12 May' },
+      { x: 330, label: '9 Jun' },
+      { x: 630, label: '7 Jul' }
+    ];
+
+    // ---- trending rows ----
+    const petalsOf = (score) => {
+      const filled = Math.round(score / 20);
+      const col = score >= 50 ? '#4A7C59' : '#C3423F';
+      const arr = [];
+      for (let k = 0; k < 5; k++) arr.push({ cx: 7 + k * 11, fill: k < filled ? col : '#DCD4C1' });
+      return arr;
+    };
+    const sparkOf = (vals) => {
+      const mn = Math.min(...vals), mx = Math.max(...vals);
+      return vals.map((v, i) => {
+        const x = (3 + i * (62 / (vals.length - 1))).toFixed(1);
+        const y = (15 - ((v - mn) / (mx - mn || 1)) * 12).toFixed(1);
+        return (i === 0 ? 'M' : ' L') + x + ' ' + y;
+      }).join('');
+    };
+    const rowsData = [
+      ['NVDA', 'NVIDIA', '171.36', 3.42, '18,420', '+212%', 84, [55, 62, 60, 71, 78, 80, 84]],
+      ['SMCI', 'Super Micro', '48.90', 8.94, '9,215', '+341%', 71, [40, 44, 42, 55, 58, 66, 71]],
+      ['PLTR', 'Palantir', '158.62', 5.71, '12,377', '+186%', 78, [60, 58, 64, 66, 70, 75, 78]],
+      ['GME', 'GameStop', '24.17', -4.63, '6,530', '+95%', 33, [52, 48, 45, 40, 38, 35, 33]],
+      ['TSLA', 'Tesla', '249.81', -2.18, '15,904', '+48%', 41, [55, 50, 49, 46, 44, 43, 41]],
+      ['COIN', 'Coinbase', '342.55', 2.87, '5,118', '+37%', 66, [58, 60, 57, 61, 63, 64, 66]],
+      ['AMD', 'Adv. Micro', '164.25', 1.12, '7,842', '+22%', 63, [60, 61, 59, 62, 61, 62, 63]],
+      ['SOFI', 'SoFi Tech', '14.92', -0.84, '4,406', '−12%', 47, [50, 51, 49, 48, 49, 47, 47]]
+    ].map(r => ({
+      ticker: r[0], name: r[1], price: r[2],
+      day: (r[3] > 0 ? '+' : '−') + Math.abs(r[3]).toFixed(2) + '%',
+      dayColor: r[3] > 0 ? '#4A7C59' : '#C3423F',
+      mentions: r[4], velocity: r[5],
+      petals: petalsOf(r[6]), spark: sparkOf(r[7])
+    }));
+
+    // ---- posts ----
+    const posts = [
+      { src: 'r/wallstreetbets · u/leather_hands_87', time: '2h', text: 'Blackwell ramp is not priced in. Datacenter guide is a lock — loaded May calls this morning.', score: 88, up: '▲ 2.1k' },
+      { src: 'StockTwits · @macro_ronin', time: '4h', text: 'Everyone in here is euphoric, which is exactly when I trim. Took half off into strength.', score: 24, up: '▲ 312' },
+      { src: 'r/stocks · u/quiet_compounder', time: '7h', text: '76% gross margins will compress eventually, but the CUDA moat is still five years deep.', score: 58, up: '▲ 940' },
+      { src: 'StockTwits · @theta_gang_taro', time: '9h', text: 'Selling the 150 puts all week. Perfectly happy to own it there.', score: 72, up: '▲ 188' }
+    ].map(p => ({
+      ...p,
+      petals: petalsOf(p.score),
+      scoreLabel: (p.score >= 50 ? 'bullish ' : 'bearish ') + p.score,
+      scoreColor: p.score >= 50 ? '#4A7C59' : '#C3423F'
+    }));
+
+    // ---- branch anchors ----
+    const anchors = [
+      { x: 150, by: 103, y: 74 }, { x: 225, by: 98, y: 122 }, { x: 300, by: 93, y: 62 },
+      { x: 380, by: 87, y: 112 }, { x: 455, by: 81, y: 54 }, { x: 530, by: 75, y: 100 },
+      { x: 610, by: 67, y: 42 }, { x: 690, by: 62, y: 92 }, { x: 770, by: 58, y: 34 },
+      { x: 850, by: 56, y: 84 }, { x: 925, by: 53, y: 28 }, { x: 985, by: 50, y: 76 }
+    ];
+    const twigs = anchors.map((a, i) => ({
+      d: 'M' + a.x + ' ' + a.by + ' Q' + (a.x + (i % 2 ? -8 : 8)) + ' ' + ((a.by + a.y) / 2) + ' ' + a.x + ' ' + a.y
+    }));
+    const bloomOrder = [2, 7, 4, 9, 0, 11, 5, 1, 8, 3, 10, 6];
+
+    // ---- pillars ----
+    const pillars = [
+      { name: 'Valuation', key: 'val', score: 38, weight: 20, hintText: 'Rich vs. sector on every multiple', inputs: [
+        { k: 'P/E vs sector', v: '+78%' }, { k: 'EV / EBITDA', v: '51.3' }, { k: 'FCF yield', v: '2.1%' }, { k: 'PEG', v: '1.12' }] },
+      { name: 'Growth', key: 'grw', score: 92, weight: 25, hintText: 'Hyperscaler demand still compounding', inputs: [
+        { k: 'Revenue YoY', v: '+62.4%' }, { k: 'EPS YoY', v: '+71.2%' }, { k: 'Fwd rev est.', v: '+34.0%' }, { k: 'Backlog', v: 'record' }] },
+      { name: 'Quality', key: 'qlt', score: 88, weight: 20, hintText: 'Fortress margins, net cash balance', inputs: [
+        { k: 'Gross margin', v: '75.9%' }, { k: 'ROE', v: '91.3%' }, { k: 'Net cash', v: '$38.9B' }, { k: 'SBC / revenue', v: '2.4%' }] },
+      { name: 'Momentum', key: 'mom', score: 74, weight: 20, hintText: 'Above both moving averages', inputs: [
+        { k: 'vs 50-DMA', v: '+6.8%' }, { k: 'vs 200-DMA', v: '+19.2%' }, { k: 'RSI (14d)', v: '63' }, { k: '3-mo rel. str.', v: '+11%' }] },
+      { name: 'Sentiment', key: 'snt', score: 81, weight: 15, hintText: 'Crowd euphoric — contrarian flag', inputs: [
+        { k: 'Social score', v: '84 / 100' }, { k: 'Mention velocity', v: '+212%' }, { k: 'Put / call', v: '0.55' }, { k: 'Analyst rev. ↑', v: '31' }] }
+    ];
+
+    this._d = { candles, grid, sentPath, sentLastX: lastX, sentLastY: 32 - raw[n - 1].sent * 25, vols, dateTicks, rowsData, posts, anchors, twigs, bloomOrder, pillars };
+    return this._d;
+  }
+
+  renderVals() {
+    const d = this.data();
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const fg = clamp(this.props.fearGreed ?? 68, 0, 100);
+    const dir = this.props.direction ?? 'bullish';
+    const loading = !!this.props.loading;
+    const petalColor = dir === 'bullish' ? '#4A7C59' : '#C3423F';
+
+    // season
+    let seasonLabel, seasonNote;
+    if (fg < 15) { seasonLabel = '枯枝 Bare Branch'; seasonNote = 'extreme fear'; }
+    else if (fg < 35) { seasonLabel = '蕾 First Buds'; seasonNote = 'fear'; }
+    else if (fg < 55) { seasonLabel = '開花 Opening'; seasonNote = 'neutral'; }
+    else if (fg < 78) { seasonLabel = '花盛り Bloom'; seasonNote = 'greed'; }
+    else { seasonLabel = '満開 Full Bloom'; seasonNote = 'extreme greed'; }
+
+    const bloomCount = Math.round(d.anchors.length * clamp((fg - 15) / 75, 0, 1));
+    const budCount = fg > 8 ? Math.min(d.anchors.length, bloomCount + 3) : 0;
+    const blossoms = [], buds = [];
+    d.bloomOrder.forEach((ai, rank) => {
+      const a = d.anchors[ai];
+      const tf = 'translate(' + a.x + ',' + a.y + ') rotate(' + ((ai * 47) % 360) + ')';
+      if (rank < bloomCount) blossoms.push({ tf: tf, color: petalColor });
+      else if (rank < budCount) buds.push({ tf: tf });
+    });
+
+    const screen = this.state.screen;
+    const expanded = this.state.expanded;
+    const pillars = d.pillars.map(p => {
+      const h = 54 * p.score / 100;
+      return {
+        ...p,
+        cid: 'kbk-clip-' + p.key,
+        clipUrl: 'url(#kbk-clip-' + p.key + ')',
+        rectY: 62 - h,
+        rectH: h + 4,
+        isExpanded: expanded === p.key
+      };
+    });
+
+    return {
+      onDash: screen === 'dashboard',
+      onDetail: screen === 'detail',
+      onScore: screen === 'score',
+      goDash: (e) => { if (e) e.preventDefault(); this.setState({ screen: 'dashboard' }); },
+      goDetail: (e) => { if (e) e.preventDefault(); this.setState({ screen: 'detail' }); },
+      goScore: (e) => { if (e) e.preventDefault(); this.setState({ screen: 'score' }); },
+      togglePillar: (e) => {
+        const el = e && e.currentTarget;
+        const k = el ? el.getAttribute('data-pillar') : null;
+        if (k) this.setState(st => ({ expanded: st.expanded === k ? null : k }));
+      },
+      loading: loading,
+      notLoading: !loading,
+      skelRows: [1, 2, 3, 4, 5, 6, 7, 8],
+      fearGreedText: String(fg),
+      socialText: dir === 'bullish' ? '62 bullish' : '38 bearish',
+      seasonLabel: seasonLabel,
+      seasonNote: seasonNote,
+      seasonColor: fg >= 55 ? '#4A7C59' : (fg < 35 ? '#C3423F' : '#211C15'),
+      petalColor: petalColor,
+      twigs: d.twigs,
+      blossoms: blossoms,
+      buds: buds,
+      rows: d.rowsData,
+      candles: d.candles,
+      grid: d.grid,
+      sentPath: d.sentPath,
+      sentLastX: d.sentLastX,
+      sentLastY: d.sentLastY,
+      vols: d.vols,
+      dateTicks: d.dateTicks,
+      posts: d.posts,
+      pillars: pillars
+    };
+  }
+}
+</script>
+</body>
+</html>

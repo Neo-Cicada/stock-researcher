@@ -1,0 +1,103 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #f5f0e5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: #211c15;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #E8B4B8;
+}
+
+::selection {
+  background: #e8b4b8;
+  color: #211c15;
+}
+
+@keyframes kabuka-drift-a {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-150px, 360px) rotate(230deg);
+    opacity: 0;
+  }
+}
+
+@keyframes kabuka-drift-b {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  85% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(90px, 330px) rotate(-190deg);
+    opacity: 0;
+  }
+}
+
+@keyframes kabuka-inkfade {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
+[data-petal] {
+  animation-fill-mode: forwards;
+}
+
+[data-skel] {
+  animation: kabuka-inkfade 1.8s ease-in-out infinite;
+}
+
+[data-skel-row]:nth-child(2n) [data-skel] {
+  animation-delay: 0.35s;
+}
+
+[data-skel-row]:nth-child(3n) [data-skel] {
+  animation-delay: 0.6s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-petal] {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+  [data-skel] {
+    animation: none !important;
+    opacity: 0.25 !important;
+  }
+}
+
+.kbk-row:hover {
+  background: rgba(33, 28, 21, 0.045);
+}
+
+.kbk-pillar:hover {
+  background: #efe9db;
+}

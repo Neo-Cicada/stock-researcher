@@ -4,7 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-function currentTickerFromPath(pathname: string): { ticker: string; onDetail: boolean } {
+function currentTickerFromPath(pathname: string): {
+  ticker: string;
+  onDetail: boolean;
+} {
   const match = pathname.match(/^\/stock\/([^/]+)/);
   if (match) return { ticker: match[1].toUpperCase(), onDetail: true };
   return { ticker: "NVDA", onDetail: false };
@@ -46,10 +49,24 @@ export default function Header() {
   return (
     <header className="kbk-header">
       <div className="kbk-header-brand">
-        <span style={{ fontFamily: "var(--font-mincho)", fontWeight: 800, fontSize: 30, letterSpacing: "0.06em" }}>
+        <span
+          style={{
+            fontFamily: "var(--font-mincho)",
+            fontWeight: 800,
+            fontSize: 30,
+            letterSpacing: "0.06em",
+          }}
+        >
           株価
         </span>
-        <span style={{ fontFamily: "var(--font-mincho)", fontWeight: 600, fontSize: 16, letterSpacing: "0.42em" }}>
+        <span
+          style={{
+            fontFamily: "var(--font-mincho)",
+            fontWeight: 600,
+            fontSize: 16,
+            letterSpacing: "0.42em",
+          }}
+        >
           KABUKA
         </span>
       </div>
@@ -63,17 +80,14 @@ export default function Header() {
           {onDetail && <span style={dotStyle} />}
           <span>{ticker}</span>
         </Link>
-        <form
-          onSubmit={handleSearch}
-          className="kbk-header-search"
-        >
+        <form onSubmit={handleSearch} className="kbk-header-search">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value.toUpperCase())}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
-            placeholder="SEARCH STOCK"
+            placeholder="SEARCH"
             maxLength={5}
             style={{
               fontFamily: "var(--font-mono)",
@@ -90,9 +104,7 @@ export default function Header() {
             }}
           />
         </form>
-        <span className="kbk-header-date">
-          8 Jul 2026 · 開場中 open
-        </span>
+        <span className="kbk-header-date">8 Jul 2026 · 開場中 open</span>
       </nav>
     </header>
   );

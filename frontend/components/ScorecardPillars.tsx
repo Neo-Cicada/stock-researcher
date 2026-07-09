@@ -6,7 +6,7 @@ import type { Pillar } from "@/lib/types";
 const PETAL_ANGLES = [0, 72, 144, 216, 288];
 
 export default function ScorecardPillars({ pillars }: { pillars: Pillar[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <section className="kbk-pillars-grid">
@@ -15,12 +15,12 @@ export default function ScorecardPillars({ pillars }: { pillars: Pillar[] }) {
         const rectY = 62 - h;
         const rectH = h + 4;
         const cid = `kbk-clip-${p.key}`;
-        const isExpanded = expanded === p.key;
+        const isExpanded = expanded;
 
         return (
           <div
             key={p.key}
-            onClick={() => setExpanded((cur) => (cur === p.key ? null : p.key))}
+            onClick={() => setExpanded((cur) => !cur)}
             className="kbk-pillar"
             style={{ background: "#F5F0E5", padding: "22px 18px 16px", cursor: "pointer", display: "flex", flexDirection: "column" }}
           >

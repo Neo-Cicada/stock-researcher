@@ -48,7 +48,7 @@ export default function Header() {
 
   return (
     <header className="kbk-header">
-      <div className="kbk-header-brand">
+      <Link href="/" className="kbk-header-brand" style={{ textDecoration: "none", color: "inherit" }}>
         <span
           style={{
             fontFamily: "var(--font-mincho)",
@@ -69,7 +69,7 @@ export default function Header() {
         >
           KABUKA
         </span>
-      </div>
+      </Link>
       <span className="kbk-header-tagline">RICE-PAPER MARKET RESEARCH</span>
       <nav className="kbk-header-nav">
         <Link href="/" style={linkStyle}>

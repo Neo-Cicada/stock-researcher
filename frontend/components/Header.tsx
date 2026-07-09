@@ -1,17 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-
-function currentTickerFromPath(pathname: string): {
-  ticker: string;
-  onDetail: boolean;
-} {
-  const match = pathname.match(/^\/stock\/([^/]+)/);
-  if (match) return { ticker: match[1].toUpperCase(), onDetail: true };
-  return { ticker: "NVDA", onDetail: false };
-}
+import { TRENDING_TICKERS } from "@/lib/tickers";
 
 const dotStyle: React.CSSProperties = {
   width: 7,
@@ -33,17 +25,49 @@ const linkStyle: React.CSSProperties = {
 export default function Header() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const { ticker, onDetail } = currentTickerFromPath(pathname);
   const onDash = pathname === "/";
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const suggestions =
+    query.length > 0
+      ? TRENDING_TICKERS.filter((t) => t.startsWith(query)).slice(0, 6)
+      : [];
+  const showDropdown = searchFocused && suggestions.length > 0;
+
+  const navigate = useCallback(
+    (t: string) => {
+      router.push(`/stock/${t.toLowerCase()}`);
+      setQuery("");
+      setHighlightIdx(-1);
+    },
+    [router],
+  );
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
+    if (highlightIdx >= 0 && highlightIdx < suggestions.length) {
+      navigate(suggestions[highlightIdx]);
+      return;
+    }
     const cleaned = query.trim().replace(/[^a-zA-Z.]/g, "");
     if (!cleaned) return;
-    router.push(`/stock/${cleaned.toLowerCase()}`);
-    setQuery("");
+    navigate(cleaned);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!showDropdown) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIdx((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === "Escape") {
+      setSearchFocused(false);
+    }
   }
 
   return (
@@ -76,19 +100,29 @@ export default function Header() {
           {onDash && <span style={dotStyle} />}
           <span>DASHBOARD</span>
         </Link>
-        <Link href={`/stock/${ticker.toLowerCase()}`} style={linkStyle}>
-          {onDetail && <span style={dotStyle} />}
-          <span>{ticker}</span>
-        </Link>
-        <form onSubmit={handleSearch} className="kbk-header-search">
+        <form
+          onSubmit={handleSearch}
+          className="kbk-header-search"
+          style={{ position: "relative" }}
+        >
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value.toUpperCase())}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
+            onChange={(e) => {
+              setQuery(e.target.value.toUpperCase());
+              setHighlightIdx(-1);
+            }}
+            onFocus={() => {
+              if (blurTimeout.current) clearTimeout(blurTimeout.current);
+              setSearchFocused(true);
+            }}
+            onBlur={() => {
+              blurTimeout.current = setTimeout(() => setSearchFocused(false), 150);
+            }}
+            onKeyDown={handleKeyDown}
             placeholder="SEARCH"
             maxLength={5}
+            autoComplete="off"
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: 12,
@@ -103,6 +137,47 @@ export default function Header() {
               borderRadius: 0,
             }}
           />
+          {showDropdown && (
+            <ul
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                margin: 0,
+                padding: 0,
+                listStyle: "none",
+                background: "#F5F0E5",
+                border: "1px solid rgba(33,28,21,0.25)",
+                borderTop: "none",
+                zIndex: 100,
+                maxHeight: 200,
+                overflowY: "auto",
+              }}
+            >
+              {suggestions.map((t, i) => (
+                <li
+                  key={t}
+                  onMouseDown={() => navigate(t)}
+                  onMouseEnter={() => setHighlightIdx(i)}
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 12,
+                    letterSpacing: "0.12em",
+                    padding: "5px 10px",
+                    cursor: "pointer",
+                    background:
+                      i === highlightIdx
+                        ? "rgba(33,28,21,0.08)"
+                        : "transparent",
+                    color: "#211C15",
+                  }}
+                >
+                  {t}
+                </li>
+              ))}
+            </ul>
+          )}
         </form>
         <span className="kbk-header-date">8 Jul 2026 · 開場中 open</span>
       </nav>

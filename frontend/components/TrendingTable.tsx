@@ -6,14 +6,36 @@ import type { TrendingRowView } from "@/lib/dashboard";
 import TrendingSkeleton from "./TrendingSkeleton";
 
 const GRID_COLS = "58px 1fr 78px 62px 72px 62px 72px 76px";
+const ROWS_PER_PAGE = 20;
 
 export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+
+  const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
+  const pageRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 850);
     return () => clearTimeout(t);
   }, []);
+
+  const btnBase: React.CSSProperties = {
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+    letterSpacing: "0.08em",
+    padding: "5px 14px",
+    border: "1px solid rgba(33,28,21,0.35)",
+    background: "transparent",
+    color: "#211C15",
+    cursor: "pointer",
+  };
+
+  const btnDisabled: React.CSSProperties = {
+    ...btnBase,
+    opacity: 0.25,
+    cursor: "default",
+  };
 
   return (
     <div>
@@ -62,7 +84,7 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
             <span style={{ textAlign: "center" }}>SENTIMENT</span>
             <span style={{ textAlign: "right" }}>7-DAY</span>
           </div>
-          {rows.map((row) => (
+          {pageRows.map((row) => (
             <Link
               key={row.ticker}
               href={`/stock/${row.ticker.toLowerCase()}`}
@@ -105,9 +127,32 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
               </span>
             </Link>
           ))}
-          <div style={{ fontSize: 10.5, opacity: 0.45, paddingTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span>Sentiment petals: 5 = strongly bullish crowd</span>
-            <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)" }}>sources: reddit · stocktwits · x</span>
+
+          {/* Pagination */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                style={page === 0 ? btnDisabled : btnBase}
+              >
+                ← prev
+              </button>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: 0.6 }}>
+                {page * ROWS_PER_PAGE + 1}–{Math.min((page + 1) * ROWS_PER_PAGE, rows.length)} of {rows.length}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                style={page >= totalPages - 1 ? btnDisabled : btnBase}
+              >
+                next →
+              </button>
+            </div>
+            <div style={{ fontSize: 10.5, opacity: 0.45, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <span>Sentiment petals: 5 = strongly bullish crowd</span>
+              <span style={{ fontFamily: "var(--font-mono)" }}>sources: reddit · stocktwits · x</span>
+            </div>
           </div>
         </div></div>
       )}

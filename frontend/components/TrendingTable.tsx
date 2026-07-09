@@ -8,12 +8,28 @@ import TrendingSkeleton from "./TrendingSkeleton";
 const GRID_COLS = "58px 1fr 78px 62px 72px 62px 72px 76px";
 const ROWS_PER_PAGE = 20;
 
+const FILTERS = ["all", "wallstreetbets", "investing", "daytrading"] as const;
+type Filter = (typeof FILTERS)[number];
+
+const FILTER_LABELS: Record<Filter, string> = {
+  all: "All",
+  wallstreetbets: "r/wallstreetbets",
+  investing: "r/investing",
+  daytrading: "r/daytrading",
+};
+
 export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<Filter>("all");
 
-  const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
-  const pageRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+  const filteredRows =
+    activeFilter === "all"
+      ? rows
+      : rows.filter((r) => r.subreddits.includes(activeFilter));
+
+  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+  const pageRows = filteredRows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 850);
@@ -37,6 +53,35 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
     cursor: "default",
   };
 
+  const chipBase: React.CSSProperties = {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10.5,
+    letterSpacing: "0.06em",
+    padding: "4px 12px",
+    border: "1px solid rgba(33,28,21,0.3)",
+    background: "transparent",
+    color: "#211C15",
+    cursor: "pointer",
+    transition: "background 0.15s, border-color 0.15s",
+  };
+
+  const chipActive: React.CSSProperties = {
+    ...chipBase,
+    background: "#211C15",
+    color: "#F5F0E5",
+    borderColor: "#211C15",
+  };
+
+  const handleFilterChange = (f: Filter) => {
+    setActiveFilter(f);
+    setPage(0);
+  };
+
+  const sourceLabel =
+    activeFilter === "all"
+      ? "sources: reddit · stocktwits · x"
+      : `source: r/${activeFilter}`;
+
   return (
     <div>
       <div className="kbk-trending-heading">
@@ -57,6 +102,19 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
           話題
         </span>
         <span style={{ fontSize: 11, opacity: 0.5 }}>ranked by mention velocity · 24h</span>
+      </div>
+
+      {/* Subreddit filter chips */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "10px 0 14px" }}>
+        {FILTERS.map((f) => (
+          <button
+            key={f}
+            onClick={() => handleFilterChange(f)}
+            style={activeFilter === f ? chipActive : chipBase}
+          >
+            {FILTER_LABELS[f]}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -139,7 +197,9 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
                 ← prev
               </button>
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: 0.6 }}>
-                {page * ROWS_PER_PAGE + 1}–{Math.min((page + 1) * ROWS_PER_PAGE, rows.length)} of {rows.length}
+                {filteredRows.length === 0
+                  ? "0 of 0"
+                  : `${page * ROWS_PER_PAGE + 1}–${Math.min((page + 1) * ROWS_PER_PAGE, filteredRows.length)} of ${filteredRows.length}`}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
@@ -151,7 +211,7 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
             </div>
             <div style={{ fontSize: 10.5, opacity: 0.45, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span>Sentiment petals: 5 = strongly bullish crowd</span>
-              <span style={{ fontFamily: "var(--font-mono)" }}>sources: reddit · stocktwits · x</span>
+              <span style={{ fontFamily: "var(--font-mono)" }}>{sourceLabel}</span>
             </div>
           </div>
         </div></div>

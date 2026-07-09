@@ -1,12 +1,17 @@
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
-from sqlalchemy.ext.asyncio import create_async_engine
+# Ensure the backend package root is on sys.path so `app` is importable
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from alembic import context
-from app.config import settings  # noqa: I001
-from app.database import Base
-from app.models import Stock  # noqa: F401 — ensure models are registered
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
+
+from alembic import context  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.database import Base  # noqa: E402
+from app.models import RedditPost, Stock, StockMention  # noqa: E402, F401
 
 config = context.config
 if config.config_file_name is not None:

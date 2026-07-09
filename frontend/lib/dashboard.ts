@@ -1,6 +1,9 @@
 import { getTickerProfile, TRENDING_TICKERS } from "./tickers";
 import { buildPriceSeries, petalsOf, sparkOf } from "./series";
+import { makeRng } from "./rng";
 import { colors } from "./colors";
+
+const SUBREDDIT_LIST = ["wallstreetbets", "investing", "daytrading"] as const;
 
 export interface TrendingRowView {
   ticker: string;
@@ -12,6 +15,7 @@ export interface TrendingRowView {
   velocity: string;
   petals: { cx: number; fill: string }[];
   spark: string;
+  subreddits: string[];
 }
 
 export function getTrendingRows(): TrendingRowView[] {
@@ -19,6 +23,14 @@ export function getTrendingRows(): TrendingRowView[] {
     const profile = getTickerProfile(t);
     const series = buildPriceSeries(profile);
     const dayPct = series.dayChangePct;
+
+    // Deterministically assign subreddits (~65% chance each, at least one)
+    const subRng = makeRng(profile.seed + 999);
+    let subs = SUBREDDIT_LIST.filter(() => subRng() < 0.65);
+    if (subs.length === 0) {
+      subs = [SUBREDDIT_LIST[Math.floor(subRng() * SUBREDDIT_LIST.length)]];
+    }
+
     return {
       ticker: profile.ticker,
       name: profile.shortName,
@@ -29,6 +41,7 @@ export function getTrendingRows(): TrendingRowView[] {
       velocity: profile.velocityLabel,
       petals: petalsOf(profile.sentimentScore),
       spark: sparkOf(profile.spark7d),
+      subreddits: [...subs],
     };
   });
 }

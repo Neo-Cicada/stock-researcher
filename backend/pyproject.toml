@@ -10,6 +10,7 @@ dependencies = [
     "asyncpg>=0.30",
     "alembic>=1.15",
     "pydantic-settings>=2.7",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]

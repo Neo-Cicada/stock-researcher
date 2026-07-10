@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.price import StockPrice
 from app.models.reddit import TrendingSnapshot
 from app.schemas.reddit import (
     RedditFetchResponse,
@@ -64,6 +65,20 @@ async def trending_tickers(
         if snap.rank < entry["rank"]:
             entry["rank"] = snap.rank
             entry["rank_24h_ago"] = snap.rank_24h_ago
+
+    # Fetch prices for all tickers in one query
+    all_tickers = list(ticker_data.keys())
+    if all_tickers:
+        price_stmt = select(StockPrice).where(StockPrice.ticker.in_(all_tickers))
+        price_result = await db.execute(price_stmt)
+        price_map = {p.ticker: p for p in price_result.scalars().all()}
+
+        for ticker, entry in ticker_data.items():
+            sp = price_map.get(ticker)
+            if sp:
+                entry["price"] = sp.price
+                entry["previous_close"] = sp.previous_close
+                entry["day_change_pct"] = sp.day_change_pct
 
     # Sort by mention_count descending, limit
     sorted_tickers = sorted(

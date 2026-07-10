@@ -10,7 +10,16 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://apewisdom.io/api/v1.0/filter"
 
-FILTERS = ["all-stocks", "wallstreetbets", "investing", "Daytrading"]
+FILTERS = [
+    "all-stocks",
+    "wallstreetbets",
+    "stocks",
+    "stockmarket",
+    "investing",
+    "Daytrading",
+    "pennystocks",
+    "options",
+]
 
 MAX_PAGES = 3  # 100 per page = up to 300 tickers per filter
 

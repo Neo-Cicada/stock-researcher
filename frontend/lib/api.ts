@@ -14,6 +14,9 @@ export interface TrendingTickerAPI {
   rank_24h_ago: number | null;
   mentions_24h_ago: number | null;
   sources: string[];
+  price: number | null;
+  previous_close: number | null;
+  day_change_pct: number | null;
 }
 
 export async function fetchTrending(
@@ -31,7 +34,10 @@ export async function fetchTrending(
 export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
   const profile = getTickerProfile(t.ticker);
   const series = buildPriceSeries(profile);
-  const dayPct = series.dayChangePct;
+
+  // Use real price data when available, fall back to mock
+  const priceStr = t.price != null ? t.price.toFixed(2) : series.lastClose.toFixed(2);
+  const dayPct = t.day_change_pct != null ? t.day_change_pct : series.dayChangePct;
 
   // Compute velocity from 24h-ago mentions
   let velocity: string;
@@ -47,7 +53,7 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
   return {
     ticker: t.ticker,
     name: t.name || profile.shortName,
-    price: series.lastClose.toFixed(2),
+    price: priceStr,
     day: (dayPct >= 0 ? "+" : "−") + Math.abs(dayPct).toFixed(2) + "%",
     dayColor: dayPct >= 0 ? colors.bullish : colors.bearish,
     mentions: t.mention_count.toLocaleString(),

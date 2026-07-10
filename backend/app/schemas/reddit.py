@@ -10,6 +10,9 @@ class TrendingTickerOut(BaseModel):
     rank_24h_ago: int | None = None
     mentions_24h_ago: int | None = None
     sources: list[str]
+    price: float | None = None
+    previous_close: float | None = None
+    day_change_pct: float | None = None
 
 
 class RedditFetchResult(BaseModel):

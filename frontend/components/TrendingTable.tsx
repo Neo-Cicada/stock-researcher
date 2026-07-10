@@ -9,14 +9,27 @@ import TrendingSkeleton from "./TrendingSkeleton";
 const GRID_COLS = "58px 1fr 78px 62px 72px 62px 72px 76px";
 const ROWS_PER_PAGE = 20;
 
-const FILTERS = ["all", "wallstreetbets", "investing", "Daytrading"] as const;
+const FILTERS = [
+  "all",
+  "wallstreetbets",
+  "stocks",
+  "stockmarket",
+  "investing",
+  "Daytrading",
+  "pennystocks",
+  "options",
+] as const;
 type Filter = (typeof FILTERS)[number];
 
 const FILTER_LABELS: Record<Filter, string> = {
   all: "All",
   wallstreetbets: "r/wallstreetbets",
+  stocks: "r/stocks",
+  stockmarket: "r/stockmarket",
   investing: "r/investing",
   Daytrading: "r/daytrading",
+  pennystocks: "r/pennystocks",
+  options: "r/options",
 };
 
 export default function TrendingTable({ rows: initialRows }: { rows: TrendingRowView[] }) {

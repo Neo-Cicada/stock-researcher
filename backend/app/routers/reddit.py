@@ -1,149 +1,85 @@
-from datetime import UTC, datetime, timedelta
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.reddit import RedditPost, StockMention
+from app.models.reddit import TrendingSnapshot
 from app.schemas.reddit import (
     RedditFetchResponse,
     RedditFetchResult,
-    StockMentionOut,
     TrendingTickerOut,
 )
-from app.services.reddit_fetcher import fetch_all_subreddits
+from app.services.apewisdom_fetcher import fetch_all_filters
 
 router = APIRouter(prefix="/api/reddit", tags=["reddit"])
 
 
-@router.get("/mentions", response_model=list[StockMentionOut])
-async def list_mentions(
-    subreddit: str | None = Query(None),
-    ticker: str | None = Query(None),
-    hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(100, ge=1, le=500),
-    db: AsyncSession = Depends(get_db),
-):
-    cutoff = datetime.now(UTC) - timedelta(hours=hours)
-
-    stmt = (
-        select(
-            StockMention,
-            RedditPost.title.label("post_title"),
-        )
-        .join(RedditPost, StockMention.post_id == RedditPost.id)
-        .where(StockMention.mentioned_at >= cutoff)
-        .order_by(StockMention.mentioned_at.desc())
-        .limit(limit)
-    )
-
-    if subreddit:
-        stmt = stmt.where(StockMention.subreddit == subreddit)
-    if ticker:
-        stmt = stmt.where(StockMention.ticker == ticker.upper())
-
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    return [
-        StockMentionOut(
-            id=mention.id,
-            ticker=mention.ticker,
-            subreddit=mention.subreddit,
-            mentioned_at=mention.mentioned_at,
-            score=mention.score,
-            post_title=post_title,
-        )
-        for mention, post_title in rows
-    ]
-
-
-@router.get("/mentions/{ticker}", response_model=list[StockMentionOut])
-async def get_ticker_mentions(
-    ticker: str,
-    hours: int = Query(24, ge=1, le=168),
-    limit: int = Query(50, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-):
-    cutoff = datetime.now(UTC) - timedelta(hours=hours)
-
-    stmt = (
-        select(
-            StockMention,
-            RedditPost.title.label("post_title"),
-        )
-        .join(RedditPost, StockMention.post_id == RedditPost.id)
-        .where(StockMention.ticker == ticker.upper())
-        .where(StockMention.mentioned_at >= cutoff)
-        .order_by(StockMention.mentioned_at.desc())
-        .limit(limit)
-    )
-
-    result = await db.execute(stmt)
-    rows = result.all()
-
-    return [
-        StockMentionOut(
-            id=mention.id,
-            ticker=mention.ticker,
-            subreddit=mention.subreddit,
-            mentioned_at=mention.mentioned_at,
-            score=mention.score,
-            post_title=post_title,
-        )
-        for mention, post_title in rows
-    ]
-
-
 @router.get("/trending", response_model=list[TrendingTickerOut])
 async def trending_tickers(
-    subreddit: str | None = Query(None),
-    hours: int = Query(24, ge=1, le=168),
+    source: str | None = Query(None),
     limit: int = Query(25, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    cutoff = datetime.now(UTC) - timedelta(hours=hours)
-
-    stmt = (
-        select(
-            StockMention.ticker,
-            func.count(StockMention.id).label("mention_count"),
-            func.sum(StockMention.score).label("total_score"),
-            func.array_agg(func.distinct(StockMention.subreddit)).label(
-                "subreddits"
-            ),
-        )
-        .where(StockMention.mentioned_at >= cutoff)
-        .group_by(StockMention.ticker)
-        .order_by(func.count(StockMention.id).desc())
-        .limit(limit)
+    # Subquery: latest fetched_at per source
+    latest_ts = (
+        select(func.max(TrendingSnapshot.fetched_at).label("max_ts"))
+        .group_by(TrendingSnapshot.source)
+        .subquery()
     )
 
-    if subreddit:
-        stmt = stmt.where(StockMention.subreddit == subreddit)
+    # Get snapshots from the latest fetch only
+    stmt = select(TrendingSnapshot).where(
+        TrendingSnapshot.fetched_at.in_(select(latest_ts.c.max_ts))
+    )
+
+    if source:
+        stmt = stmt.where(TrendingSnapshot.source == source)
 
     result = await db.execute(stmt)
-    rows = result.all()
+    snapshots = result.scalars().all()
 
-    return [
-        TrendingTickerOut(
-            ticker=row.ticker,
-            mention_count=row.mention_count,
-            total_score=row.total_score or 0,
-            subreddits=row.subreddits or [],
-        )
-        for row in rows
-    ]
+    # Aggregate across sources by ticker
+    ticker_data: dict[str, dict] = {}
+    for snap in snapshots:
+        if snap.ticker not in ticker_data:
+            ticker_data[snap.ticker] = {
+                "ticker": snap.ticker,
+                "name": snap.name,
+                "mention_count": 0,
+                "upvotes": 0,
+                "rank": snap.rank,
+                "rank_24h_ago": snap.rank_24h_ago,
+                "mentions_24h_ago": None,
+                "sources": [],
+            }
+        entry = ticker_data[snap.ticker]
+        entry["mention_count"] += snap.mentions
+        entry["upvotes"] += snap.upvotes
+        if snap.mentions_24h_ago is not None:
+            entry["mentions_24h_ago"] = (entry["mentions_24h_ago"] or 0) + (
+                snap.mentions_24h_ago
+            )
+        entry["sources"].append(snap.source)
+        # Keep the best (lowest) rank
+        if snap.rank < entry["rank"]:
+            entry["rank"] = snap.rank
+            entry["rank_24h_ago"] = snap.rank_24h_ago
+
+    # Sort by mention_count descending, limit
+    sorted_tickers = sorted(
+        ticker_data.values(), key=lambda x: x["mention_count"], reverse=True
+    )[:limit]
+
+    return [TrendingTickerOut(**t) for t in sorted_tickers]
 
 
 @router.post("/fetch", response_model=RedditFetchResponse)
 async def trigger_fetch(db: AsyncSession = Depends(get_db)):
-    counts = await fetch_all_subreddits(db)
+    counts = await fetch_all_filters(db)
     return RedditFetchResponse(
         status="ok",
         results=[
-            RedditFetchResult(subreddit=sub, new_mentions=count)
-            for sub, count in counts.items()
+            RedditFetchResult(source=src, tickers_stored=count)
+            for src, count in counts.items()
         ],
     )

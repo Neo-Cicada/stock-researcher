@@ -1,54 +1,29 @@
 from datetime import datetime
 
-from sqlalchemy import (
-    BigInteger,
-    ForeignKey,
-    Index,
-    String,
-    Text,
-    UniqueConstraint,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import DateTime, Index, String, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
 
-class RedditPost(Base):
-    __tablename__ = "reddit_posts"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    reddit_id: Mapped[str] = mapped_column(String(20), unique=True, index=True)
-    subreddit: Mapped[str] = mapped_column(String(50), index=True)
-    title: Mapped[str] = mapped_column(Text)
-    selftext: Mapped[str] = mapped_column(Text, default="")
-    author: Mapped[str] = mapped_column(String(100))
-    url: Mapped[str] = mapped_column(Text)
-    score: Mapped[int] = mapped_column(default=0)
-    num_comments: Mapped[int] = mapped_column(default=0)
-    created_utc: Mapped[datetime] = mapped_column()
-    fetched_at: Mapped[datetime] = mapped_column(server_default=func.now())
-
-    mentions: Mapped[list["StockMention"]] = relationship(
-        back_populates="post", cascade="all, delete-orphan"
-    )
-
-
-class StockMention(Base):
-    __tablename__ = "stock_mentions"
+class TrendingSnapshot(Base):
+    __tablename__ = "trending_snapshots"
     __table_args__ = (
-        UniqueConstraint("post_id", "ticker", name="uq_post_ticker"),
-        Index("ix_stock_mentions_ticker", "ticker"),
-        Index("ix_stock_mentions_subreddit", "subreddit"),
+        UniqueConstraint("ticker", "source", "fetched_at", name="uq_ticker_source_ts"),
+        Index("ix_trending_snapshots_ticker", "ticker"),
+        Index("ix_trending_snapshots_source", "source"),
+        Index("ix_trending_snapshots_fetched_at", "fetched_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    post_id: Mapped[int] = mapped_column(
-        ForeignKey("reddit_posts.id", ondelete="CASCADE")
-    )
     ticker: Mapped[str] = mapped_column(String(10))
-    subreddit: Mapped[str] = mapped_column(String(50))
-    mentioned_at: Mapped[datetime] = mapped_column()
-    score: Mapped[int] = mapped_column(BigInteger, default=0)
-
-    post: Mapped["RedditPost"] = relationship(back_populates="mentions")
+    name: Mapped[str] = mapped_column(String(200), default="")
+    rank: Mapped[int] = mapped_column(default=0)
+    mentions: Mapped[int] = mapped_column(default=0)
+    upvotes: Mapped[int] = mapped_column(default=0)
+    rank_24h_ago: Mapped[int | None] = mapped_column(nullable=True)
+    mentions_24h_ago: Mapped[int | None] = mapped_column(nullable=True)
+    source: Mapped[str] = mapped_column(String(50))
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

@@ -1,40 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import type { TrendingRowView } from "@/lib/dashboard";
+import { fetchTrending, apiRowToView } from "@/lib/api";
 import TrendingSkeleton from "./TrendingSkeleton";
 
 const GRID_COLS = "58px 1fr 78px 62px 72px 62px 72px 76px";
 const ROWS_PER_PAGE = 20;
 
-const FILTERS = ["all", "wallstreetbets", "investing", "daytrading"] as const;
+const FILTERS = ["all", "wallstreetbets", "investing", "Daytrading"] as const;
 type Filter = (typeof FILTERS)[number];
 
 const FILTER_LABELS: Record<Filter, string> = {
   all: "All",
   wallstreetbets: "r/wallstreetbets",
   investing: "r/investing",
-  daytrading: "r/daytrading",
+  Daytrading: "r/daytrading",
 };
 
-export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
-  const [loading, setLoading] = useState(true);
+export default function TrendingTable({ rows: initialRows }: { rows: TrendingRowView[] }) {
+  const [rows, setRows] = useState<TrendingRowView[]>(initialRows);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
 
-  const filteredRows =
-    activeFilter === "all"
-      ? rows
-      : rows.filter((r) => r.subreddits.includes(activeFilter));
-
-  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
-  const pageRows = filteredRows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
-
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 850);
-    return () => clearTimeout(t);
-  }, []);
+  const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
+  const pageRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
 
   const btnBase: React.CSSProperties = {
     fontFamily: "var(--font-mono)",
@@ -58,7 +50,9 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
     fontSize: 10.5,
     letterSpacing: "0.06em",
     padding: "4px 12px",
-    border: "1px solid rgba(33,28,21,0.3)",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "rgba(33,28,21,0.3)",
     background: "transparent",
     color: "#211C15",
     cursor: "pointer",
@@ -72,15 +66,25 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
     borderColor: "#211C15",
   };
 
-  const handleFilterChange = (f: Filter) => {
+  const handleFilterChange = async (f: Filter) => {
     setActiveFilter(f);
     setPage(0);
+    setLoading(true);
+    try {
+      const source = f === "all" ? undefined : f;
+      const data = await fetchTrending(source);
+      setRows(data.map(apiRowToView));
+    } catch {
+      // Keep current rows on error
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sourceLabel =
     activeFilter === "all"
-      ? "sources: reddit · stocktwits · x"
-      : `source: r/${activeFilter}`;
+      ? "source: apewisdom.io"
+      : `source: r/${FILTER_LABELS[activeFilter].replace("r/", "")}`;
 
   return (
     <div>
@@ -101,7 +105,7 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
         >
           話題
         </span>
-        <span style={{ fontSize: 11, opacity: 0.5 }}>ranked by mention velocity · 24h</span>
+        <span style={{ fontSize: 11, opacity: 0.5 }}>ranked by mention count · 24h</span>
       </div>
 
       {/* Subreddit filter chips */}
@@ -197,9 +201,9 @@ export default function TrendingTable({ rows }: { rows: TrendingRowView[] }) {
                 ← prev
               </button>
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: 0.6 }}>
-                {filteredRows.length === 0
+                {rows.length === 0
                   ? "0 of 0"
-                  : `${page * ROWS_PER_PAGE + 1}–${Math.min((page + 1) * ROWS_PER_PAGE, filteredRows.length)} of ${filteredRows.length}`}
+                  : `${page * ROWS_PER_PAGE + 1}–${Math.min((page + 1) * ROWS_PER_PAGE, rows.length)} of ${rows.length}`}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}

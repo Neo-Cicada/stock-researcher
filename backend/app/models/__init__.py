@@ -1,4 +1,4 @@
-from app.models.reddit import RedditPost, StockMention
+from app.models.reddit import TrendingSnapshot
 from app.models.stock import Stock
 
-__all__ = ["Stock", "RedditPost", "StockMention"]
+__all__ = ["Stock", "TrendingSnapshot"]

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 from alembic import context  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.database import Base  # noqa: E402
-from app.models import RedditPost, Stock, StockMention  # noqa: E402, F401
+from app.models import Stock, TrendingSnapshot  # noqa: E402, F401
 
 config = context.config
 if config.config_file_name is not None:

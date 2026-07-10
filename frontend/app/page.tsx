@@ -2,9 +2,20 @@ import MarketSeasonBranch from "@/components/MarketSeasonBranch";
 import TrendingTable from "@/components/TrendingTable";
 import ThemesColumn from "@/components/ThemesColumn";
 import { getTrendingRows, TODAYS_THEMES, THEMES_QUIET_NOTE, MARKET_STATE } from "@/lib/dashboard";
+import { fetchTrending, apiRowToView } from "@/lib/api";
 
-export default function DashboardPage() {
-  const rows = getTrendingRows();
+async function getInitialRows() {
+  try {
+    const data = await fetchTrending(undefined, 100);
+    return data.map(apiRowToView);
+  } catch {
+    // Fallback to mock data if backend is unreachable
+    return getTrendingRows();
+  }
+}
+
+export default async function DashboardPage() {
+  const rows = await getInitialRows();
 
   return (
     <main data-screen-label="Dashboard" className="kbk-page-main">

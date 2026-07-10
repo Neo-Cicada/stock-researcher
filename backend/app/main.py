@@ -9,30 +9,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import async_session, engine
 from app.routers import reddit, stocks
-from app.services.reddit_fetcher import fetch_all_subreddits
+from app.services.apewisdom_fetcher import fetch_all_filters
 
 logger = logging.getLogger(__name__)
 
 FETCH_INTERVAL = 600  # 10 minutes
 
 
-async def periodic_reddit_fetch() -> None:
-    """Background task: fetch Reddit posts every 10 minutes."""
+async def periodic_apewisdom_fetch() -> None:
+    """Background task: fetch ApeWisdom trending data every 10 minutes."""
     while True:
         try:
             async with async_session() as db:
-                results = await fetch_all_subreddits(db)
+                results = await fetch_all_filters(db)
                 total = sum(results.values())
-                logger.info("Periodic fetch complete: %d new mentions", total)
+                logger.info("ApeWisdom fetch: %d tickers stored", total)
         except Exception:
-            logger.exception("Periodic Reddit fetch failed")
+            logger.exception("Periodic ApeWisdom fetch failed")
         await asyncio.sleep(FETCH_INTERVAL)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    task = asyncio.create_task(periodic_reddit_fetch())
-    logger.info("Started periodic Reddit fetch task")
+    task = asyncio.create_task(periodic_apewisdom_fetch())
+    logger.info("Started periodic ApeWisdom fetch task")
     try:
         yield
     finally:

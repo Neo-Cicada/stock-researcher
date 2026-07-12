@@ -105,6 +105,22 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
     }
   };
 
+  const handleRefresh = async () => {
+    cache.current = {};
+    setLoading(true);
+    try {
+      const source = activeFilter === "all" ? undefined : activeFilter;
+      const data = await fetchTrending(source);
+      const mapped = data.map(apiRowToView);
+      cache.current[activeFilter] = mapped;
+      setRows(mapped);
+    } catch {
+      // Keep current rows on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sourceLabel =
     activeFilter === "all"
       ? "source: apewisdom.io"

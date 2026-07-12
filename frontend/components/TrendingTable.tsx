@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import type { TrendingRowView } from "@/lib/dashboard";
 import { fetchTrending, apiRowToView } from "@/lib/api";
@@ -35,8 +35,10 @@ const FILTER_LABELS: Record<Filter, string> = {
 export default function TrendingTable({ rows: initialRows }: { rows: TrendingRowView[] }) {
   const [rows, setRows] = useState<TrendingRowView[]>(initialRows);
   const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [page, setPage] = useState(0);
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
+  const cache = useRef<Partial<Record<Filter, TrendingRowView[]>>>({ all: initialRows });
 
   const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
   const pageRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
@@ -82,11 +84,20 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
   const handleFilterChange = async (f: Filter) => {
     setActiveFilter(f);
     setPage(0);
+
+    // Serve from cache instantly if available
+    if (cache.current[f]) {
+      startTransition(() => setRows(cache.current[f]!));
+      return;
+    }
+
     setLoading(true);
     try {
       const source = f === "all" ? undefined : f;
       const data = await fetchTrending(source);
-      setRows(data.map(apiRowToView));
+      const mapped = data.map(apiRowToView);
+      cache.current[f] = mapped;
+      setRows(mapped);
     } catch {
       // Keep current rows on error
     } finally {

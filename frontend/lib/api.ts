@@ -1,5 +1,3 @@
-import { getTickerProfile } from "./tickers";
-import { buildPriceSeries, petalsOf, sparkOf } from "./series";
 import { colors } from "./colors";
 import type { TrendingRowView } from "./dashboard";
 
@@ -32,12 +30,8 @@ export async function fetchTrending(
 }
 
 export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
-  const profile = getTickerProfile(t.ticker);
-  const series = buildPriceSeries(profile);
-
-  // Use real price data when available, fall back to mock
-  const priceStr = t.price != null ? t.price.toFixed(2) : series.lastClose.toFixed(2);
-  const dayPct = t.day_change_pct != null ? t.day_change_pct : series.dayChangePct;
+  const priceStr = t.price != null ? t.price.toFixed(2) : "—";
+  const dayPct = t.day_change_pct;
 
   // Compute velocity from 24h-ago mentions
   let velocity: string;
@@ -50,16 +44,24 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
     velocity = "new";
   }
 
+  let day: string;
+  let dayColor: string;
+  if (dayPct != null) {
+    day = (dayPct >= 0 ? "+" : "−") + Math.abs(dayPct).toFixed(2) + "%";
+    dayColor = dayPct >= 0 ? colors.bullish : colors.bearish;
+  } else {
+    day = "—";
+    dayColor = colors.ink;
+  }
+
   return {
     ticker: t.ticker,
-    name: t.name || profile.shortName,
+    name: t.name || t.ticker,
     price: priceStr,
-    day: (dayPct >= 0 ? "+" : "−") + Math.abs(dayPct).toFixed(2) + "%",
-    dayColor: dayPct >= 0 ? colors.bullish : colors.bearish,
+    day,
+    dayColor,
     mentions: t.mention_count.toLocaleString(),
     velocity,
-    petals: petalsOf(profile.sentimentScore),
-    spark: sparkOf(profile.spark7d),
     subreddits: t.sources,
   };
 }

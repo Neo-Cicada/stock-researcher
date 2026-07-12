@@ -1,5 +1,5 @@
 import { getTickerProfile, TRENDING_TICKERS } from "./tickers";
-import { buildPriceSeries, petalsOf, sparkOf } from "./series";
+import { buildPriceSeries } from "./series";
 import { makeRng } from "./rng";
 import { colors } from "./colors";
 
@@ -13,8 +13,6 @@ export interface TrendingRowView {
   dayColor: string;
   mentions: string;
   velocity: string;
-  petals: { cx: number; fill: string }[];
-  spark: string;
   subreddits: string[];
 }
 
@@ -39,8 +37,6 @@ export function getTrendingRows(): TrendingRowView[] {
       dayColor: dayPct >= 0 ? colors.bullish : colors.bearish,
       mentions: profile.mentionsLabel,
       velocity: profile.velocityLabel,
-      petals: petalsOf(profile.sentimentScore),
-      spark: sparkOf(profile.spark7d),
       subreddits: [...subs],
     };
   });

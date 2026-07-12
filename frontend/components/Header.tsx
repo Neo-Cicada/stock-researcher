@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { TRENDING_TICKERS } from "@/lib/tickers";
+import { KNOWN_TICKERS } from "@/lib/known-tickers";
 
 const dotStyle: React.CSSProperties = {
   width: 7,
@@ -31,9 +31,41 @@ export default function Header() {
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const formatDateTime = useCallback(() => {
+    const now = new Date();
+    const date = now.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    const time = now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    // US market hours: 9:30 AM – 4:00 PM ET, Mon–Fri
+    const et = new Date(
+      now.toLocaleString("en-US", { timeZone: "America/New_York" })
+    );
+    const h = et.getHours();
+    const m = et.getMinutes();
+    const day = et.getDay();
+    const mins = h * 60 + m;
+    const isOpen =
+      day >= 1 && day <= 5 && mins >= 570 && mins < 960; // 9:30=570, 16:00=960
+    return { date, time, isOpen };
+  }, []);
+
+  const [dateTime, setDateTime] = useState(formatDateTime);
+
+  useEffect(() => {
+    const id = setInterval(() => setDateTime(formatDateTime()), 60_000);
+    return () => clearInterval(id);
+  }, [formatDateTime]);
+
   const suggestions =
     query.length > 0
-      ? TRENDING_TICKERS.filter((t) => t.startsWith(query)).slice(0, 6)
+      ? KNOWN_TICKERS.filter((t) => t.startsWith(query)).slice(0, 6)
       : [];
   const showDropdown = searchFocused && suggestions.length > 0;
 
@@ -179,7 +211,9 @@ export default function Header() {
             </ul>
           )}
         </form>
-        <span className="kbk-header-date">8 Jul 2026 · 開場中 open</span>
+        <span className="kbk-header-date">
+          {dateTime.date} · {dateTime.time} · {dateTime.isOpen ? "開場中 open" : "閉場 closed"}
+        </span>
       </nav>
     </header>
   );

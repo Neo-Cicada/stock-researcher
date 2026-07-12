@@ -6,7 +6,7 @@ import type { TrendingRowView } from "@/lib/dashboard";
 import { fetchTrending, apiRowToView } from "@/lib/api";
 import TrendingSkeleton from "./TrendingSkeleton";
 
-const GRID_COLS = "58px 1fr 78px 62px 72px 62px 72px 76px";
+const GRID_COLS = "58px 1fr 78px 62px 72px 62px";
 const ROWS_PER_PAGE = 20;
 
 const FILTERS = [
@@ -156,8 +156,6 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
             <span style={{ textAlign: "right" }}>DAY</span>
             <span style={{ textAlign: "right" }}>MENTIONS</span>
             <span style={{ textAlign: "right" }}>VELOCITY</span>
-            <span style={{ textAlign: "center" }}>SENTIMENT</span>
-            <span style={{ textAlign: "right" }}>7-DAY</span>
           </div>
           {pageRows.map((row) => (
             <Link
@@ -188,18 +186,6 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
                 {row.mentions}
               </span>
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, textAlign: "right" }}>{row.velocity}</span>
-              <span style={{ display: "flex", justifyContent: "center" }}>
-                <svg width={58} height={15} viewBox="0 0 58 15">
-                  {row.petals.map((pe, i) => (
-                    <ellipse key={i} cx={pe.cx} cy={7.5} rx={3.4} ry={5.6} fill={pe.fill} />
-                  ))}
-                </svg>
-              </span>
-              <span style={{ display: "flex", justifyContent: "flex-end" }}>
-                <svg width={68} height={18} viewBox="0 0 68 18">
-                  <path d={row.spark} fill="none" stroke="#211C15" strokeWidth={1.2} strokeLinecap="round" opacity={0.72} />
-                </svg>
-              </span>
             </Link>
           ))}
 
@@ -226,10 +212,7 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
                 next →
               </button>
             </div>
-            <div style={{ fontSize: 10.5, opacity: 0.45, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <span>Sentiment petals: 5 = strongly bullish crowd</span>
-              <span style={{ fontFamily: "var(--font-mono)" }}>{sourceLabel}</span>
-            </div>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.45 }}>{sourceLabel}</span>
           </div>
         </div></div>
       )}

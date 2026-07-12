@@ -129,3 +129,36 @@ The dashboard page (`app/page.tsx`) is an async server component that fetches tr
 - **Design reference**: When intent is unclear, consult `frontend/project/Kabuka.dc.html` (original prototype) and `frontend/chats/chat1.md` (design conversation). These are excluded from linting.
 - **Backend linting**: Ruff configured with `line-length = 88`, rules `E` (errors), `F` (pyflakes), `I` (isort), targeting Python 3.12. `alembic/versions/` is excluded from linting.
 - **ApeWisdom ingestion flow**: Fetch trending data per filter (paginated) → bulk insert `TrendingSnapshot` rows with source and timestamp → `/trending` endpoint queries latest snapshots and aggregates across sources by ticker.
+
+## Agent (Claude CLI Wrapper)
+
+An autonomous coding agent that wraps the `claude` CLI in a plan-then-execute workflow. Uses your existing Claude subscription — no API key needed.
+
+### Commands
+
+All agent commands must be run from the `agent/` directory:
+
+```bash
+cd agent
+uv sync                                                 # Install dependencies
+uv run python -m agent "Your task description"           # Full plan→approve→execute
+uv run python -m agent --plan-only "Describe the task"   # Plan only, no execution
+uv run python -m agent --model sonnet --budget 5.0 "Task" # Custom model/budget
+uv run python -m agent                                   # Interactive prompt
+```
+
+### Structure
+
+Source code lives in `agent/src/agent/` (src layout, built with hatchling):
+
+- **`cli.py`** — CLI argument parsing + plan→approve→execute orchestration loop
+- **`runner.py`** — Invokes `claude -p` subprocess with JSON output parsing; returns `ClaudeResult(result, session_id, cost_usd, model)`
+- **`prompts.py`** — Builds system prompts from CLAUDE.md + plan/execute instructions
+- **`display.py`** — Terminal UI with rich (panels, markdown rendering, approval prompt)
+- **`config.py`** — `AgentConfig` dataclass (repo_root, model, budget, turn limits)
+
+### Flow
+
+1. **Plan phase**: `claude -p --permission-mode plan` (read-only, explores codebase, outputs structured plan)
+2. **User review**: Approve / Revise (with feedback) / Reject
+3. **Execute phase**: `claude -p --resume SESSION_ID --permission-mode acceptEdits` (implements the approved plan)

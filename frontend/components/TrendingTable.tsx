@@ -107,6 +107,7 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
 
   const handleRefresh = async () => {
     cache.current = {};
+    setPage(0);
     setLoading(true);
     try {
       const source = activeFilter === "all" ? undefined : activeFilter;
@@ -130,6 +131,23 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
     <div>
       <div className="kbk-trending-heading">
         <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 700, fontSize: 18, margin: 0 }}>Trending Tickers</h2>
+        <button
+          onClick={handleRefresh}
+          disabled={loading}
+          title="Refresh data"
+          style={{
+            background: "transparent",
+            border: "1px solid rgba(33,28,21,0.3)",
+            cursor: loading ? "default" : "pointer",
+            padding: "3px 8px",
+            fontSize: 13,
+            lineHeight: 1,
+            opacity: loading ? 0.4 : 0.7,
+            transition: "opacity 0.15s",
+          }}
+        >
+          ↻
+        </button>
         <span
           style={{
             fontFamily: "var(--font-mincho)",

@@ -42,6 +42,9 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   const priceLabel = real
     ? `PRICE · ${history!.candles.length} SESSIONS · LIVE`
     : "PRICE · 42 SESSIONS";
+  // Prefer the real company name from the live /history payload; fall back to
+  // the mock profile name when live data (or the name field) is unavailable.
+  const displayName = history?.name || profile.name;
   const weightsLine = profile.pillars.map((p) => `${p.key.toUpperCase()} ${p.weight}`).join(" · ");
 
   const subheadingStyle: React.CSSProperties = { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 };
@@ -59,7 +62,7 @@ export default async function StockDetailPage({ params }: { params: Params }) {
 
       <StockHeader
         ticker={profile.ticker}
-        name={profile.name}
+        name={displayName}
         exchange={profile.exchange}
         lastClose={lastClose}
         dayChangeAbs={dayChangeAbs}

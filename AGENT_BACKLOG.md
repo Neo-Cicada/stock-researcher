@@ -12,10 +12,7 @@ just give a goal: `--autonomous --goal "..."`.
 
 ## Todo
 
-- [ ] Add a `GET /api/stocks/{ticker}/history` response example to the README API table with a sample JSON payload.
-- [ ] Add a backend pytest that calls the `_fetch_ticker_detail` NaN/empty-history guards with a fake ticker and asserts it returns `None`.
-- [ ] Show the real company `name` from the history endpoint in the stock detail header (currently the header uses the mock profile name even when live data is available).
-- [ ] Add a small loading/`aria-busy` state to the trending refresh button so screen readers announce the refresh.
+<!-- (empty) -->
 
 ## Done
 
@@ -23,3 +20,7 @@ just give a goal: `--autonomous --goal "..."`.
      after reviewing the commits it produced. -->
 
 - [x] Add a `type="button"` attribute to the refresh button in `frontend/components/TrendingTable.tsx` (done in commit 7c7727c).
+- [x] Add a `GET /api/stocks/{ticker}/history` response example to the README API table with a sample JSON payload (commit d13b9f1).
+- [x] Add a backend pytest that calls the `_fetch_ticker_detail` NaN/empty-history guards with a fake ticker and asserts it returns `None` (commit c01caa4).
+- [x] Show the real company `name` from the history endpoint in the stock detail header (commit cbf65f1).
+- [x] Add a small loading/`aria-busy` state to the trending refresh button so screen readers announce the refresh (commit fa443e6).

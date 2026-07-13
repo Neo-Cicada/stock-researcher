@@ -90,6 +90,10 @@ def _run_blocking(cmd: list[str], env: dict, cwd: Path | None) -> ClaudeResult:
             cwd=cwd or Path.cwd(),
             env=env,
             timeout=600,
+            # Detach the child from our stdin: `claude -p` reads stdin when it
+            # isn't a TTY (e.g. piped input), which would drain the stdin the
+            # parent needs for the approval prompt.
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
         return ClaudeResult(result="Claude CLI timed out.", is_error=True)
@@ -130,6 +134,10 @@ def _run_streaming(cmd: list[str], env: dict, cwd: Path | None) -> ClaudeResult:
             text=True,
             cwd=cwd or Path.cwd(),
             env=env,
+            # Detach the child from our stdin: `claude -p` reads stdin when it
+            # isn't a TTY (e.g. piped input), which would drain the stdin the
+            # parent needs for the approval prompt.
+            stdin=subprocess.DEVNULL,
         )
     except FileNotFoundError:
         return ClaudeResult(

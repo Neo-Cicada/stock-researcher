@@ -132,6 +132,7 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
       <div className="kbk-trending-heading">
         <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 700, fontSize: 18, margin: 0 }}>Trending Tickers</h2>
         <button
+          type="button"
           onClick={handleRefresh}
           disabled={loading}
           title="Refresh data"

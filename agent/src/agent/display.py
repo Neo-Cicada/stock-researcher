@@ -89,6 +89,51 @@ def show_verification(results: list) -> bool:
     return all_passed
 
 
+def show_autonomous_header(
+    goal: str | None, branch: str, budget: float, max_iterations: int
+) -> None:
+    """Announce the start of an autonomous run."""
+    lines = Text()
+    lines.append("Goal: ", style="bold")
+    lines.append(f"{goal or '(backlog-driven)'}\n")
+    lines.append("Branch: ", style="bold")
+    lines.append(f"{branch}\n")
+    lines.append("Budget: ", style="bold")
+    lines.append(f"${budget:.2f}")
+    lines.append("   Max iterations: ", style="bold")
+    lines.append(str(max_iterations))
+    console.print(
+        Panel(lines, title="[bold]Autonomous mode[/bold]", border_style="magenta")
+    )
+
+
+def show_task_outcome(committed: bool, reason: str) -> None:
+    """Report whether a task's changes were committed or rolled back."""
+    if committed:
+        console.print(f"[bold green]✓ committed[/bold green] [dim]{reason}[/dim]")
+    else:
+        console.print(f"[bold red]↩ reverted[/bold red] [dim]{reason}[/dim]")
+
+
+def show_autonomous_summary(
+    completed: list[str], failed: list[str], total_cost: float, stop_reason: str
+) -> None:
+    """Final summary of an autonomous run."""
+    lines = Text()
+    lines.append(f"Stopped: {stop_reason}\n\n", style="bold")
+    lines.append(f"Committed ({len(completed)}):\n", style="bold green")
+    for t in completed:
+        lines.append(f"  ✓ {t}\n")
+    if failed:
+        lines.append(f"Reverted ({len(failed)}):\n", style="bold red")
+        for t in failed:
+            lines.append(f"  ↩ {t}\n")
+    lines.append(f"\nTotal cost: ${total_cost:.4f}", style="dim")
+    console.print(
+        Panel(lines, title="[bold]Run complete[/bold]", border_style="magenta")
+    )
+
+
 def ask_approval() -> tuple[str, str | None]:
     """Prompt user to approve, revise, or reject the plan.
 

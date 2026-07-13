@@ -38,7 +38,7 @@ Frontend env var: `NEXT_PUBLIC_API_URL` (default: `http://localhost:8000`) — t
 
 ## Project Overview
 
-**Kabuka (株価)** is a stock research app with a Japanese woodblock-print aesthetic. The frontend fetches real trending ticker data from the backend API (mention counts, ranks, velocity from ApeWisdom) and uses deterministic mock data (seeded RNG) for price charts, sentiment, and sparklines. The backend ingests pre-aggregated Reddit mention data from the ApeWisdom API via a background task every 10 minutes. The frontend was implemented from an HTML/CSS/JS prototype exported from Claude Design (see `frontend/project/Kabuka.dc.html` and `frontend/chats/` for original design intent).
+**Kabuka (株価)** is a stock research app with a Japanese woodblock-print aesthetic. The frontend fetches real trending ticker data (mention counts, ranks, velocity from ApeWisdom) and real price data (quotes, daily OHLC candles, fundamentals from yfinance) from the backend API, falling back to deterministic mock data (seeded RNG) when the backend or a ticker's live data is unavailable. Reddit crowd data — sentiment timeline, mention-volume bars, sparklines, scorecard pillars, and social posts — is always mock. Two background tasks keep the data fresh: ApeWisdom trending every 10 minutes, yfinance prices every 5 minutes. The frontend was implemented from an HTML/CSS/JS prototype exported from Claude Design (see `frontend/project/Kabuka.dc.html` and `frontend/chats/` for original design intent).
 
 ## Tech Stack
 
@@ -53,7 +53,7 @@ Frontend env var: `NEXT_PUBLIC_API_URL` (default: `http://localhost:8000`) — t
 - SQLAlchemy 2.0 (async) + asyncpg, Alembic migrations
 - PostgreSQL 16 (local install via Homebrew)
 - Package management: uv (pyproject.toml + uv.lock)
-- HTTP client: httpx (for ApeWisdom API calls)
+- HTTP clients: httpx (ApeWisdom API), yfinance (stock quotes, OHLC history, fundamentals — synchronous, run in a thread executor)
 
 ## Architecture
 
@@ -68,26 +68,29 @@ All endpoints prefixed with `/api`:
 
 - `GET /api/health` — Health check
 - `GET /api/stocks/` — List all stocks
-- `GET /api/stocks/{ticker}` — Get single stock
-- `GET /api/reddit/trending` — Trending tickers with aggregated mention counts, upvotes, ranks (params: `source`, `limit`)
+- `GET /api/stocks/{ticker}` — Get single stock (from DB)
+- `GET /api/stocks/{ticker}/history` — Live daily OHLC candles + fundamentals from yfinance; returns `available=false` (not an error) for unknown/delisted tickers or when yfinance is unreachable, so the frontend falls back to mock
+- `GET /api/reddit/trending` — Trending tickers with aggregated mention counts, upvotes, ranks, plus merged latest price/day-change from `stock_prices` (params: `source`, `limit`)
 - `POST /api/reddit/fetch` — Manually trigger ApeWisdom fetch
 
 ### Backend Structure
 
-- **`app/main.py`** — FastAPI app with lifespan-managed background task that fetches ApeWisdom data every 10 minutes
-- **`app/routers/`** — `stocks.py` (CRUD for stocks) and `reddit.py` (trending, manual fetch trigger)
-- **`app/models/`** — SQLAlchemy models: `Stock`, `TrendingSnapshot`
-- **`app/schemas/`** — Pydantic response models: `StockOut`, `TrendingTickerOut`, `RedditFetchResponse`
+- **`app/main.py`** — FastAPI app with two lifespan-managed background tasks: `periodic_apewisdom_fetch` (every 10 min) and `periodic_price_fetch` (every 5 min, starting 30s after boot so trending tickers exist first; it fetches prices for tickers in the latest trending snapshot)
+- **`app/routers/`** — `stocks.py` (list/get stocks, `/history` yfinance detail) and `reddit.py` (trending, manual fetch trigger)
+- **`app/models/`** — SQLAlchemy models: `Stock`, `TrendingSnapshot`, `StockPrice`
+- **`app/schemas/`** — Pydantic response models: `StockOut`, `TrendingTickerOut`, `RedditFetchResponse`, plus `TickerHistoryOut` / `CandleOut` / `TickerFundamentals` (the `/history` payload)
 - **`app/services/apewisdom_fetcher.py`** — Fetches trending tickers from ApeWisdom API (`https://apewisdom.io/api/v1.0/filter/{filter}/page/{page}`) for 4 filters (all-stocks, wallstreetbets, investing, Daytrading), paginating up to 3 pages (300 tickers per filter). Bulk inserts `TrendingSnapshot` rows.
+- **`app/services/price_fetcher.py`** — yfinance wrapper. `fetch_prices_async(db, tickers)` batch-downloads (50/batch) latest close + previous close and upserts `StockPrice` rows (for the trending table). `fetch_ticker_detail_async(ticker)` returns single-ticker OHLC candles + fundamentals for `/history`, backed by a 10-minute in-process TTL cache (`_detail_cache`). Synchronous yfinance calls run in a thread executor.
 - **`app/database.py`** — Async engine + session factory; `get_db()` dependency for endpoint injection
 - **`app/config.py`** — Pydantic BaseSettings, reads from `.env`
 
 ### Database Models
 
-Two tables, two migrations (`f2d902d1e44e` — initial, `fa9d44ea0aa4` — ApeWisdom switch):
+Three tables, three migrations (`f2d902d1e44e` — initial reddit tables, `fa9d44ea0aa4` — ApeWisdom switch, `3853f72ee731` — add stock_prices):
 
 - `stocks` — ticker (unique), name, sector
 - `trending_snapshots` — ticker (indexed), name, rank, mentions, upvotes, rank_24h_ago, mentions_24h_ago, source (indexed), fetched_at (timestamptz, indexed); unique constraint on (ticker, source, fetched_at)
+- `stock_prices` — ticker (unique, indexed), price, previous_close, day_change_pct, updated_at (timestamptz, auto-updated). One row per ticker, upserted by the price-fetch task; merged into the `/trending` response.
 
 ### Server vs Client Components
 
@@ -99,9 +102,10 @@ Most components are **server components** — they receive pre-computed data as 
 
 ### Frontend Data Layer (`lib/`)
 
-- **`api.ts`** — Backend API client. `fetchTrending(source?, limit?)` fetches from `GET /api/reddit/trending`. `apiRowToView()` maps API response to `TrendingRowView` by merging real mention data with mock price/sentiment/sparkline data from ticker profiles.
-- **`tickers.ts`** — 8 curated tickers (NVDA, SMCI, PLTR, GME, TSLA, COIN, AMD, SOFI) with hardcoded fundamentals, pillars, and posts. Unknown tickers get procedurally generated profiles via `getTickerProfile()` using FNV-1a hash as seed. `TRENDING_TICKERS` exports 120 tickers total (curated + auto-generated sector groups).
-- **`series.ts`** — Generates candlestick series (42 candles), sentiment paths, volume bars, sparkline SVG paths, and Market Season Branch blossom/bud data from a ticker profile.
+- **`api.ts`** — Backend API client. `fetchTrending(source?, limit?)` hits `GET /api/reddit/trending`; `apiRowToView()` maps a row to `TrendingRowView`, using the real price/day-change when present and falling back to mock sentiment/sparkline from the ticker profile. `fetchTickerHistory(ticker)` hits `GET /api/stocks/{ticker}/history` (returns `null` on failure or `available=false`); `apiFundamentalsToView()` maps the fundamentals payload to the `Fundamental[]` view shape.
+- **`known-tickers.ts`** — Flat `KNOWN_TICKERS` list (~well-known symbols) used for the Header search autocomplete.
+- **`tickers.ts`** — 8 curated tickers (NVDA, SMCI, PLTR, GME, TSLA, COIN, AMD, SOFI) with hardcoded fundamentals, pillars, and posts. Unknown tickers get procedurally generated profiles via `getTickerProfile()` using FNV-1a hash as seed. `TRENDING_TICKERS` exports 128 tickers total (8 curated + sector-grouped symbols).
+- **`series.ts`** — `buildPriceSeries(profile)` generates the mock candlestick series (42 candles), sentiment paths, volume bars, sparkline SVG paths, and Market Season Branch blossom/bud data. `buildRealCandles(candles)` builds the same chart geometry (candles, grid, last close, day change) from real yfinance OHLC data returned by `/history`.
 - **`rng.ts`** — Seeded Park-Miller LCG + FNV-1a hash. Ensures identical renders across server and client.
 - **`dashboard.ts`** — Assembles mock trending table rows (fallback) and theme data. Exports `MARKET_STATE`.
 - **`composite.ts`** — Weighted-average composite score from pillar data.
@@ -111,6 +115,8 @@ Most components are **server components** — they receive pre-computed data as 
 ### Frontend–Backend Integration
 
 The dashboard page (`app/page.tsx`) is an async server component that fetches trending data from the backend at render time. If the backend is unreachable, it falls back to mock data from `dashboard.ts`. The `TrendingTable` client component receives initial rows as props and re-fetches from the backend API when the user clicks a subreddit filter tab (All, r/wallstreetbets, r/investing, r/daytrading).
+
+The stock detail page (`app/stock/[ticker]/page.tsx`) is an async server component that calls `fetchTickerHistory()` at render time. When live data is available it uses real candles (`buildRealCandles`) and real fundamentals; otherwise it falls back to the mock `buildPriceSeries`/`profile.fundamentals`. The sentiment timeline and mention-volume charts are always mock (Reddit crowd data has no live source). When a ticker is `insufficient` (< 60 mentions), the `BareTwig` component replaces the crowd charts.
 
 ### Design System
 

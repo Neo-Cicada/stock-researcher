@@ -12,7 +12,6 @@ just give a goal: `--autonomous --goal "..."`.
 
 ## Todo
 
-- [ ] Add a `type="button"` attribute to the refresh button in `frontend/components/TrendingTable.tsx` (it's a bare `<button>`).
 - [ ] Add a `GET /api/stocks/{ticker}/history` response example to the README API table with a sample JSON payload.
 - [ ] Add a backend pytest that calls the `_fetch_ticker_detail` NaN/empty-history guards with a fake ticker and asserts it returns `None`.
 - [ ] Show the real company `name` from the history endpoint in the stock detail header (currently the header uses the mock profile name even when live data is available).
@@ -22,3 +21,5 @@ just give a goal: `--autonomous --goal "..."`.
 
 <!-- The agent does not check these off automatically; move items here yourself
      after reviewing the commits it produced. -->
+
+- [x] Add a `type="button"` attribute to the refresh button in `frontend/components/TrendingTable.tsx` (done in commit 7c7727c).

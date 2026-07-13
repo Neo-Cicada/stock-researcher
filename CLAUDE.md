@@ -149,13 +149,21 @@ uv run python -m agent "Your task description"           # Full plan→approve�
 uv run python -m agent --plan-only "Describe the task"   # Plan only, no execution
 uv run python -m agent --model sonnet --budget 5.0 "Task" # Custom model/budget
 uv run python -m agent                                   # Interactive prompt
+
+# Autonomous mode: pick tasks from AGENT_BACKLOG.md / a goal and loop, no gate
+uv run python -m agent --autonomous --budget 6.0
+uv run python -m agent --autonomous --goal "Improve backend test coverage"
+uv run python -m agent --autonomous --max-iterations 3 --branch agent/nightly
 ```
 
 ### Structure
 
 Source code lives in `agent/src/agent/` (src layout, built with hatchling):
 
-- **`cli.py`** — CLI argument parsing + plan→approve→execute→verify orchestration loop
+- **`cli.py`** — CLI argument parsing + plan→approve→execute→verify orchestration loop (and dispatch to autonomous mode)
+- **`autonomous.py`** — `--autonomous` loop: triage (pick next task from `AGENT_BACKLOG.md`/`--goal`) → plan → execute → verify, with no approval gate. Green tasks are committed to a work branch (`agent/auto-<timestamp>`), red/no-op/errored tasks are hard-reverted (`git reset --hard` + `clean -fd`). Stops on budget, `--max-iterations`, consecutive-failure circuit breaker, empty backlog, or a `.agent-stop` file. Never pushes.
+- **`git_ops.py`** — git helpers for the loop (branch checkout, HEAD snapshot, commit-all, reset/clean).
+- **`state.py`** — autonomous run state (completed/failed tasks, total cost, iterations), persisted in `.git/kabuka-agent-state.json` so it is never committed
 - **`runner.py`** — Invokes `claude -p` subprocess with JSON output parsing; strips billing-override env vars (see above); returns `ClaudeResult(result, session_id, cost_usd, model)` (`cost_usd` read from the CLI's `total_cost_usd` field). Handles both blocking (`--output-format json`) and real-time streaming (`--output-format stream-json`, parsing `message.content` text blocks).
 - **`prompts.py`** — Builds system prompts from CLAUDE.md + plan/execute instructions
 - **`verify.py`** — Programmatic post-execute gate: reads `git status --porcelain`, then runs the matching linter for each changed subtree (`backend/`→ruff, `frontend/`→eslint, `agent/`→ruff). Returns `CheckResult`s the CLI surfaces as pass/fail.

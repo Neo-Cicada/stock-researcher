@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from agent.autonomous import run_autonomous
 from agent.config import AgentConfig
 from agent.display import (
     ask_approval,
@@ -57,8 +58,43 @@ def parse_args() -> tuple[AgentConfig, str]:
         action="store_true",
         help="Disable streaming (wait for full response)",
     )
+    parser.add_argument(
+        "--autonomous",
+        action="store_true",
+        help="Pick tasks and loop without an approval gate (see AGENT_BACKLOG.md)",
+    )
+    parser.add_argument(
+        "--goal",
+        type=str,
+        default=None,
+        help="High-level goal for autonomous mode (backlog is used if omitted)",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=10,
+        help="Autonomous mode: max tasks to attempt (default: 10)",
+    )
+    parser.add_argument(
+        "--branch",
+        type=str,
+        default=None,
+        help="Autonomous mode: work branch name (default: agent/auto-<timestamp>)",
+    )
 
     args = parser.parse_args()
+
+    if args.autonomous:
+        config = AgentConfig(
+            model=args.model,
+            max_budget_usd=args.budget,
+            stream=not args.no_stream,
+            autonomous=True,
+            goal=args.goal or args.task,
+            work_branch=args.branch,
+            max_iterations=args.max_iterations,
+        )
+        return config, ""
 
     config = AgentConfig(
         model=args.model,
@@ -149,9 +185,13 @@ def run_execute_phase(
 
 
 def main() -> None:
-    """Main entry point: plan → approve → execute."""
+    """Main entry point: plan → approve → execute (or the autonomous loop)."""
     config, task = parse_args()
     show_banner()
+
+    if config.autonomous:
+        run_autonomous(config)
+        return
 
     # Phase 1: Plan
     plan_text, session_id, plan_cost = run_plan_phase(config, task)

@@ -134,6 +134,10 @@ The dashboard page (`app/page.tsx`) is an async server component that fetches tr
 
 An autonomous coding agent that wraps the `claude` CLI in a plan-then-execute workflow. Uses your existing Claude subscription — no API key needed.
 
+### Billing: always the subscription, never the API
+
+The agent invokes the local `claude` CLI, which authenticates via the OAuth **subscription login** (`~/.claude.json` → `oauthAccount`). The CLI only switches to API/cloud billing when it sees a credential env var. To guarantee subscription usage regardless of the parent shell, `runner.py` strips these vars from the subprocess environment before spawning: `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_VERTEX`, `AWS_BEARER_TOKEN_BEDROCK` (plus `CLAUDECODE`, so the child doesn't think it's nested). The `total_cost_usd` figures the agent prints are usage *estimates* the CLI reports either way — not API charges when running on the subscription.
+
 ### Commands
 
 All agent commands must be run from the `agent/` directory:
@@ -151,14 +155,16 @@ uv run python -m agent                                   # Interactive prompt
 
 Source code lives in `agent/src/agent/` (src layout, built with hatchling):
 
-- **`cli.py`** — CLI argument parsing + plan→approve→execute orchestration loop
-- **`runner.py`** — Invokes `claude -p` subprocess with JSON output parsing; returns `ClaudeResult(result, session_id, cost_usd, model)`
+- **`cli.py`** — CLI argument parsing + plan→approve→execute→verify orchestration loop
+- **`runner.py`** — Invokes `claude -p` subprocess with JSON output parsing; strips billing-override env vars (see above); returns `ClaudeResult(result, session_id, cost_usd, model)` (`cost_usd` read from the CLI's `total_cost_usd` field). Handles both blocking (`--output-format json`) and real-time streaming (`--output-format stream-json`, parsing `message.content` text blocks).
 - **`prompts.py`** — Builds system prompts from CLAUDE.md + plan/execute instructions
-- **`display.py`** — Terminal UI with rich (panels, markdown rendering, approval prompt)
-- **`config.py`** — `AgentConfig` dataclass (repo_root, model, budget, turn limits)
+- **`verify.py`** — Programmatic post-execute gate: reads `git status --porcelain`, then runs the matching linter for each changed subtree (`backend/`→ruff, `frontend/`→eslint, `agent/`→ruff). Returns `CheckResult`s the CLI surfaces as pass/fail.
+- **`display.py`** — Terminal UI with rich (panels, markdown rendering, approval prompt, verification-gate results)
+- **`config.py`** — `AgentConfig` dataclass (repo_root, model, `max_budget_usd`, plan_only, stream). Budget is the only spend limiter — the installed `claude` CLI has no turn-limit flag.
 
 ### Flow
 
 1. **Plan phase**: `claude -p --permission-mode plan` (read-only, explores codebase, outputs structured plan)
 2. **User review**: Approve / Revise (with feedback) / Reject
 3. **Execute phase**: `claude -p --resume SESSION_ID --permission-mode acceptEdits` (implements the approved plan)
+4. **Verification gate**: independently lints the changed subtrees (`verify.py`); a lint failure exits non-zero rather than trusting the model's self-report

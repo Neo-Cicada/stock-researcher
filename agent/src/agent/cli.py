@@ -12,6 +12,7 @@ from agent.display import (
     show_phase,
     show_plan,
     show_result,
+    show_verification,
 )
 from agent.prompts import (
     build_execute_prompt,
@@ -20,6 +21,7 @@ from agent.prompts import (
     get_plan_system_prompt,
 )
 from agent.runner import run_claude
+from agent.verify import run_verification
 
 
 def parse_args() -> tuple[AgentConfig, str]:
@@ -50,6 +52,11 @@ def parse_args() -> tuple[AgentConfig, str]:
         default=2.0,
         help="Max budget in USD (default: 2.0)",
     )
+    parser.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="Disable streaming (wait for full response)",
+    )
 
     args = parser.parse_args()
 
@@ -57,6 +64,7 @@ def parse_args() -> tuple[AgentConfig, str]:
         model=args.model,
         max_budget_usd=args.budget,
         plan_only=args.plan_only,
+        stream=not args.no_stream,
     )
 
     task = args.task
@@ -75,17 +83,16 @@ def parse_args() -> tuple[AgentConfig, str]:
 
 
 def run_plan_phase(config: AgentConfig, task: str) -> tuple[str, str, float | None]:
-    """Run the planning phase.
-
-    Returns:
-        Tuple of (plan_text, session_id, cost_usd).
-    """
+    """Run the planning phase."""
     show_phase("Phase 1: Planning (read-only)")
-    show_info("Claude is analyzing the codebase...")
+    if config.stream:
+        show_info("Streaming Claude's analysis...\n")
+    else:
+        show_info("Claude is analyzing the codebase...")
 
     claude_md = config.repo_root / "CLAUDE.md"
     system_prompt = get_plan_system_prompt(claude_md)
-    prompt = build_plan_prompt(task, claude_md)
+    prompt = build_plan_prompt(task)
 
     result = run_claude(
         prompt=prompt,
@@ -94,6 +101,7 @@ def run_plan_phase(config: AgentConfig, task: str) -> tuple[str, str, float | No
         max_budget_usd=config.max_budget_usd,
         append_system_prompt=system_prompt,
         cwd=config.repo_root,
+        stream=config.stream,
     )
 
     if result.is_error:
@@ -108,13 +116,12 @@ def run_execute_phase(
     session_id: str,
     feedback: str | None = None,
 ) -> tuple[str, float | None]:
-    """Run the execution phase.
-
-    Returns:
-        Tuple of (result_text, cost_usd).
-    """
+    """Run the execution phase."""
     show_phase("Phase 2: Executing (with write access)")
-    show_info("Claude is implementing the plan...")
+    if config.stream:
+        show_info("Streaming Claude's implementation...\n")
+    else:
+        show_info("Claude is implementing the plan...")
 
     claude_md = config.repo_root / "CLAUDE.md"
     system_prompt = get_execute_system_prompt(claude_md)
@@ -131,6 +138,7 @@ def run_execute_phase(
         max_budget_usd=config.max_budget_usd,
         append_system_prompt=system_prompt,
         cwd=config.repo_root,
+        stream=config.stream,
     )
 
     if result.is_error:
@@ -147,7 +155,11 @@ def main() -> None:
 
     # Phase 1: Plan
     plan_text, session_id, plan_cost = run_plan_phase(config, task)
-    show_plan(plan_text)
+
+    # If not streaming, show the plan in a rich panel
+    # (streaming already printed it live)
+    if not config.stream:
+        show_plan(plan_text)
 
     if config.plan_only:
         show_cost(plan_cost, None)
@@ -167,7 +179,10 @@ def main() -> None:
 
         # Revise: re-run planning with feedback
         show_phase("Re-planning with feedback")
-        show_info("Claude is revising the plan...")
+        if config.stream:
+            show_info("Streaming revised plan...\n")
+        else:
+            show_info("Claude is revising the plan...")
 
         revision_prompt = (
             f"The user wants revisions to the plan. Feedback: {feedback}\n\n"
@@ -177,9 +192,7 @@ def main() -> None:
         claude_md = config.repo_root / "CLAUDE.md"
         system_prompt = get_plan_system_prompt(claude_md)
 
-        from agent.runner import run_claude as _run
-
-        result = _run(
+        result = run_claude(
             prompt=revision_prompt,
             permission_mode="plan",
             resume=session_id,
@@ -187,6 +200,7 @@ def main() -> None:
             max_budget_usd=config.max_budget_usd,
             append_system_prompt=system_prompt,
             cwd=config.repo_root,
+            stream=config.stream,
         )
 
         if result.is_error:
@@ -198,12 +212,23 @@ def main() -> None:
         if result.cost_usd is not None:
             plan_cost = (plan_cost or 0) + result.cost_usd
 
-        show_plan(plan_text)
+        if not config.stream:
+            show_plan(plan_text)
 
     # Phase 2: Execute
     exec_text, exec_cost = run_execute_phase(config, session_id, feedback)
-    show_result(exec_text, exec_cost)
+    if not config.stream:
+        show_result(exec_text, exec_cost)
+
+    # Verification gate: independently lint whatever subtrees changed,
+    # rather than trusting the model's self-report.
+    show_phase("Phase 3: Verification gate")
+    passed = show_verification(run_verification(config.repo_root))
+
     show_cost(plan_cost, exec_cost)
+    if not passed:
+        show_error("Verification gate failed — review the lint output above.")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

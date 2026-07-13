@@ -23,7 +23,9 @@ def show_phase(phase: str) -> None:
 def show_plan(text: str) -> None:
     """Render the plan output in a bordered panel with markdown."""
     md = Markdown(text)
-    console.print(Panel(md, title="[bold]Plan[/bold]", border_style="green", padding=(1, 2)))
+    console.print(
+        Panel(md, title="[bold]Plan[/bold]", border_style="green", padding=(1, 2))
+    )
 
 
 def show_result(text: str, cost: float | None = None) -> None:
@@ -56,6 +58,35 @@ def show_cost(plan_cost: float | None, exec_cost: float | None) -> None:
     if parts:
         parts.append(f"Total: ${total:.4f}")
         console.print(f"\n[dim]Cost: {' | '.join(parts)}[/dim]")
+
+
+def show_verification(results: list) -> bool:
+    """Render the verification-gate results. Returns True if all checks passed.
+
+    `results` is a list of verify.CheckResult. An empty list means no
+    tracked subtree changed, so there was nothing to verify.
+    """
+    if not results:
+        show_info("Verification gate: no changed subtree to lint.")
+        return True
+
+    all_passed = all(r.passed for r in results)
+    lines = Text()
+    for r in results:
+        if r.passed:
+            lines.append("  ✓ ", style="bold green")
+            lines.append(f"{r.label}: passed\n")
+        else:
+            lines.append("  ✗ ", style="bold red")
+            lines.append(f"{r.label}: FAILED\n", style="red")
+            tail = "\n".join(r.output.splitlines()[-15:])
+            if tail:
+                lines.append(f"{tail}\n", style="dim")
+
+    border = "green" if all_passed else "red"
+    title = "[bold]Verification Gate[/bold]"
+    console.print(Panel(lines, title=title, border_style=border, padding=(1, 2)))
+    return all_passed
 
 
 def ask_approval() -> tuple[str, str | None]:

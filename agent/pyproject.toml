@@ -8,8 +8,18 @@ dependencies = ["rich>=13.0"]
 [project.scripts]
 kabuka-agent = "agent.cli:main"
 
+[dependency-groups]
+dev = ["ruff>=0.6"]
+
 [tool.uv]
 package = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 
 [build-system]
 requires = ["hatchling"]

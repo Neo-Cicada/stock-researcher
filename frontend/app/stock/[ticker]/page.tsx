@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTickerProfile } from "@/lib/tickers";
-import { buildPriceSeries } from "@/lib/series";
+import { buildPriceSeries, buildRealCandles } from "@/lib/series";
+import { fetchTickerHistory, apiFundamentalsToView } from "@/lib/api";
 import { compositeScore } from "@/lib/composite";
 import ScorecardPillars from "@/components/ScorecardPillars";
 import StockHeader from "@/components/StockHeader";
@@ -23,6 +24,24 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   const profile = getTickerProfile(rawTicker);
   const series = buildPriceSeries(profile);
   const composite = compositeScore(profile.pillars);
+
+  // Fetch real price/fundamentals from the backend (yfinance). Falls back to
+  // the mock `series`/`profile.fundamentals` when unavailable. Sentiment and
+  // mention-volume charts always stay mock (they are Reddit crowd data).
+  const history = await fetchTickerHistory(profile.ticker);
+  const real = history ? buildRealCandles(history.candles) : null;
+  const realFundamentals = history ? apiFundamentalsToView(history) : [];
+
+  const candles = real ? real.candles : series.candles;
+  const grid = real ? real.grid : series.grid;
+  const lastClose = real ? real.lastClose : series.lastClose;
+  const dayChangeAbs = real ? real.dayChangeAbs : series.dayChangeAbs;
+  const dayChangePct = real ? real.dayChangePct : series.dayChangePct;
+  const fundamentals =
+    realFundamentals.length > 0 ? realFundamentals : profile.fundamentals;
+  const priceLabel = real
+    ? `PRICE · ${history!.candles.length} SESSIONS · LIVE`
+    : "PRICE · 42 SESSIONS";
   const weightsLine = profile.pillars.map((p) => `${p.key.toUpperCase()} ${p.weight}`).join(" · ");
 
   const subheadingStyle: React.CSSProperties = { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 };
@@ -42,9 +61,9 @@ export default async function StockDetailPage({ params }: { params: Params }) {
         ticker={profile.ticker}
         name={profile.name}
         exchange={profile.exchange}
-        lastClose={series.lastClose}
-        dayChangeAbs={series.dayChangeAbs}
-        dayChangePct={series.dayChangePct}
+        lastClose={lastClose}
+        dayChangeAbs={dayChangeAbs}
+        dayChangePct={dayChangePct}
         sentimentScore={profile.sentimentScore}
         insufficient={profile.insufficient}
       />
@@ -52,10 +71,10 @@ export default async function StockDetailPage({ params }: { params: Params }) {
       <section className="kbk-stock-grid">
         <div>
           <div style={subheadingStyle}>
-            <span style={subLabelStyle}>PRICE · 42 SESSIONS</span>
+            <span style={subLabelStyle}>{priceLabel}</span>
             <span style={subNoteStyle}>candles: green = up · vermilion = down</span>
           </div>
-          <CandlestickChart candles={series.candles} grid={series.grid} />
+          <CandlestickChart candles={candles} grid={grid} />
 
           {profile.insufficient ? (
             <div style={{ margin: "22px 0 4px 0" }}>
@@ -81,7 +100,7 @@ export default async function StockDetailPage({ params }: { params: Params }) {
             </>
           )}
 
-          <FundamentalsGrid fundamentals={profile.fundamentals} />
+          <FundamentalsGrid fundamentals={fundamentals} />
         </div>
 
         <WhyThisSentiment posts={profile.posts} insufficient={profile.insufficient} quietNote={profile.quietNote} />

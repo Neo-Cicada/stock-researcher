@@ -1,5 +1,6 @@
 import { colors } from "./colors";
 import type { TrendingRowView } from "./dashboard";
+import type { Fundamental } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -64,4 +65,97 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
     velocity,
     subreddits: t.sources,
   };
+}
+
+// ---- Single-ticker detail (real OHLC + fundamentals from yfinance) ----
+
+export interface TickerCandleAPI {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface TickerFundamentalsAPI {
+  market_cap: number | null;
+  trailing_pe: number | null;
+  forward_pe: number | null;
+  price_to_book: number | null;
+  dividend_yield: number | null;
+  fifty_two_week_high: number | null;
+  fifty_two_week_low: number | null;
+  beta: number | null;
+}
+
+export interface TickerHistoryAPI {
+  ticker: string;
+  available: boolean;
+  name: string | null;
+  currency: string | null;
+  price: number | null;
+  previous_close: number | null;
+  day_change_pct: number | null;
+  candles: TickerCandleAPI[];
+  fundamentals: TickerFundamentalsAPI | null;
+}
+
+/**
+ * Fetch real OHLC history + fundamentals for a ticker from the backend.
+ * Returns null on any error or when the backend reports the ticker is
+ * unavailable, so callers can fall back to mock data.
+ */
+export async function fetchTickerHistory(
+  ticker: string,
+): Promise<TickerHistoryAPI | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/stocks/${encodeURIComponent(ticker)}/history`,
+    );
+    if (!res.ok) return null;
+    const data: TickerHistoryAPI = await res.json();
+    if (!data.available || data.candles.length < 2) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function fmtMarketCap(n: number): string {
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  return `$${n.toLocaleString()}`;
+}
+
+/** Map real fundamentals into the FundamentalsGrid `Fundamental[]` shape. */
+export function apiFundamentalsToView(h: TickerHistoryAPI): Fundamental[] {
+  const f = h.fundamentals;
+  if (!f) return [];
+  const out: Fundamental[] = [];
+  const push = (label: string, value: string | null) => {
+    if (value != null) out.push({ label, value });
+  };
+
+  push("MARKET CAP", f.market_cap != null ? fmtMarketCap(f.market_cap) : null);
+  push("P/E (TTM)", f.trailing_pe != null ? f.trailing_pe.toFixed(1) : null);
+  push("FWD P/E", f.forward_pe != null ? f.forward_pe.toFixed(1) : null);
+  push("P/B", f.price_to_book != null ? f.price_to_book.toFixed(1) : null);
+  // yfinance reports dividend_yield already as a percent (e.g. 0.47 = 0.47%).
+  push(
+    "DIV YIELD",
+    f.dividend_yield != null ? `${f.dividend_yield.toFixed(2)}%` : null,
+  );
+  push(
+    "52W HIGH",
+    f.fifty_two_week_high != null ? `$${f.fifty_two_week_high.toFixed(2)}` : null,
+  );
+  push(
+    "52W LOW",
+    f.fifty_two_week_low != null ? `$${f.fifty_two_week_low.toFixed(2)}` : null,
+  );
+  push("BETA", f.beta != null ? f.beta.toFixed(2) : null);
+
+  return out;
 }

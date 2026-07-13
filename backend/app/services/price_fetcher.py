@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from datetime import UTC, datetime
 from functools import partial
 
@@ -12,6 +13,10 @@ from app.models.price import StockPrice
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
+
+# In-process TTL cache for single-ticker detail (ticker -> (expires_at, payload)).
+DETAIL_CACHE_TTL = 600  # 10 minutes
+_detail_cache: dict[str, tuple[float, dict | None]] = {}
 
 
 def _download_prices(tickers: list[str]) -> dict[str, dict]:
@@ -123,3 +128,91 @@ async def fetch_prices_async(db: AsyncSession, tickers: list[str]) -> int:
 
     await db.commit()
     return count
+
+
+def _fetch_ticker_detail(ticker: str) -> dict | None:
+    """Synchronous single-ticker detail fetch via yfinance. Run in executor.
+
+    Returns None on any failure or when the ticker has no history (unknown /
+    delisted symbol), so the caller can fall back to mock data gracefully.
+    """
+    try:
+        tk = yf.Ticker(ticker)
+        hist = tk.history(period="3mo", interval="1d")
+        if hist.empty:
+            return None
+
+        candles: list[dict] = []
+        for idx, row in hist.iterrows():
+            close = row.get("Close")
+            if close is None or close != close:  # skip NaN rows
+                continue
+            vol = row["Volume"]
+            candles.append(
+                {
+                    "date": idx.date().isoformat(),
+                    "open": round(float(row["Open"]), 2),
+                    "high": round(float(row["High"]), 2),
+                    "low": round(float(row["Low"]), 2),
+                    "close": round(float(close), 2),
+                    "volume": int(vol) if vol == vol else 0,  # NaN check
+                }
+            )
+
+        if len(candles) < 2:
+            return None
+
+        price = candles[-1]["close"]
+        previous_close = candles[-2]["close"]
+        day_change_pct = (
+            round((price - previous_close) / previous_close * 100, 2)
+            if previous_close
+            else 0.0
+        )
+
+        # .info can be slow and occasionally raises or returns a partial dict.
+        try:
+            info = tk.info or {}
+        except Exception:
+            info = {}
+
+        fundamentals = {
+            "market_cap": info.get("marketCap"),
+            "trailing_pe": info.get("trailingPE"),
+            "forward_pe": info.get("forwardPE"),
+            "price_to_book": info.get("priceToBook"),
+            "dividend_yield": info.get("dividendYield"),
+            "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+            "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
+            "beta": info.get("beta"),
+        }
+
+        return {
+            "ticker": ticker,
+            "name": info.get("longName") or info.get("shortName"),
+            "currency": info.get("currency"),
+            "price": price,
+            "previous_close": previous_close,
+            "day_change_pct": day_change_pct,
+            "candles": candles,
+            "fundamentals": fundamentals,
+        }
+    except Exception:
+        logger.exception("yfinance detail fetch failed for %s", ticker)
+        return None
+
+
+async def fetch_ticker_detail_async(ticker: str) -> dict | None:
+    """Fetch single-ticker OHLC history + fundamentals, cached for 10 minutes."""
+    ticker = ticker.upper()
+    now = time.monotonic()
+
+    cached = _detail_cache.get(ticker)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    loop = asyncio.get_event_loop()
+    payload = await loop.run_in_executor(None, partial(_fetch_ticker_detail, ticker))
+
+    _detail_cache[ticker] = (now + DETAIL_CACHE_TTL, payload)
+    return payload

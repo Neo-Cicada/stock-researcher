@@ -62,20 +62,33 @@ function generateRaw(profile: TickerProfile): Candle[] {
   return raw;
 }
 
-export function buildPriceSeries(profile: TickerProfile): PriceSeries {
-  const raw = generateRaw(profile);
+export interface OHLCBar {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export interface CandleGeomResult {
+  candles: CandleGeom[];
+  grid: GridLine[];
+  minP: number;
+  maxP: number;
+  step: number;
+}
+
+/** Scale an array of OHLC bars to the fixed 760×240 chart viewbox. */
+function candleGeom(bars: OHLCBar[]): CandleGeomResult {
   let minP = Infinity;
   let maxP = -Infinity;
-  let maxV = 0;
-  raw.forEach((r) => {
-    minP = Math.min(minP, r.low);
-    maxP = Math.max(maxP, r.high);
-    maxV = Math.max(maxV, r.vol);
+  bars.forEach((b) => {
+    minP = Math.min(minP, b.low);
+    maxP = Math.max(maxP, b.high);
   });
   const yOf = (p: number) => 12 + ((maxP - p) / (maxP - minP)) * 216;
-  const step = (CHART_W - CHART_L) / SESSIONS;
+  const step = (CHART_W - CHART_L) / bars.length;
 
-  const candles: CandleGeom[] = raw.map((r, i) => {
+  const candles: CandleGeom[] = bars.map((r, i) => {
     const up = r.close >= r.open;
     const cx = CHART_L + i * step + 5;
     const byTop = yOf(Math.max(r.open, r.close));
@@ -97,6 +110,42 @@ export function buildPriceSeries(profile: TickerProfile): PriceSeries {
     const y = yOf(p);
     return { y, ty: y + 3.5, label: "$" + p.toFixed(0) };
   });
+
+  return { candles, grid, minP, maxP, step };
+}
+
+export interface RealCandleSeries {
+  candles: CandleGeom[];
+  grid: GridLine[];
+  lastClose: number;
+  prevClose: number;
+  dayChangeAbs: number;
+  dayChangePct: number;
+}
+
+/** Build candlestick geometry + price stats from real OHLC bars. */
+export function buildRealCandles(bars: OHLCBar[]): RealCandleSeries {
+  const { candles, grid } = candleGeom(bars);
+  const lastClose = bars[bars.length - 1].close;
+  const prevClose = bars[bars.length - 2].close;
+  return {
+    candles,
+    grid,
+    lastClose,
+    prevClose,
+    dayChangeAbs: lastClose - prevClose,
+    dayChangePct: prevClose ? ((lastClose - prevClose) / prevClose) * 100 : 0,
+  };
+}
+
+export function buildPriceSeries(profile: TickerProfile): PriceSeries {
+  const raw = generateRaw(profile);
+  let maxV = 0;
+  raw.forEach((r) => {
+    maxV = Math.max(maxV, r.vol);
+  });
+  const step = (CHART_W - CHART_L) / SESSIONS;
+  const { candles, grid } = candleGeom(raw);
 
   let sentPath = "";
   raw.forEach((r, i) => {

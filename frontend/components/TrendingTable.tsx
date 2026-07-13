@@ -135,6 +135,7 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
           type="button"
           onClick={handleRefresh}
           disabled={loading}
+          aria-busy={loading}
           title="Refresh data"
           style={{
             background: "transparent",

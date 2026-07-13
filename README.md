@@ -105,6 +105,38 @@ All endpoints are prefixed with `/api`:
 | `GET` | `/api/reddit/trending` | Trending tickers with aggregated mentions/ranks (params: `source`, `limit`) |
 | `POST` | `/api/reddit/fetch` | Manually trigger an ApeWisdom fetch |
 
+### Example: `GET /api/stocks/NVDA/history`
+
+Live daily OHLC candles plus key fundamentals from yfinance. Unknown or unreachable
+tickers return `{"ticker": "...", "available": false}` with an empty `candles` array and
+`null` `fundamentals`, so the frontend can fall back to mock data.
+
+```json
+{
+  "ticker": "NVDA",
+  "available": true,
+  "name": "NVIDIA Corporation",
+  "currency": "USD",
+  "price": 174.25,
+  "previous_close": 171.30,
+  "day_change_pct": 1.72,
+  "candles": [
+    { "date": "2026-07-10", "open": 168.90, "high": 172.40, "low": 168.10, "close": 171.30, "volume": 182340000 },
+    { "date": "2026-07-11", "open": 171.55, "high": 175.00, "low": 170.80, "close": 174.25, "volume": 165220000 }
+  ],
+  "fundamentals": {
+    "market_cap": 4250000000000,
+    "trailing_pe": 51.3,
+    "forward_pe": 38.7,
+    "price_to_book": 62.1,
+    "dividend_yield": 0.0002,
+    "fifty_two_week_high": 195.62,
+    "fifty_two_week_low": 86.62,
+    "beta": 1.66
+  }
+}
+```
+
 ## Common commands
 
 **Frontend** (from `frontend/`): `npm run dev` · `npm run build` · `npm run lint`

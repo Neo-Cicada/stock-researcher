@@ -22,10 +22,10 @@ just give a goal: `--autonomous --goal "..."`.
 - [ ] **Backend** — Add a Finnhub news fetcher + endpoint for "Today's Themes". Call Finnhub `GET /api/v1/news?category=general` (free tier, 60 req/min) using a `FINNHUB_API_KEY` env var (add to `app/config.py` + `.env.example`). Cluster/summarize recent headlines into a handful of themes, cache in-process (or a small table), and expose `GET /api/market/themes` (Pydantic `ThemeOut`). Return an empty/cached list on failure so the frontend can fall back.
 - [ ] **Frontend** — Wire the dashboard "Today's Themes" section to `GET /api/market/themes` (client fn in `lib/api.ts`), rendering each theme with its headline/source link. Fall back to the existing mock themes from `lib/dashboard.ts` when unavailable.
 
-### Feature: Why this sentiment (real Reddit posts)
+<!-- "Why this sentiment" (per-stock social posts) stays on mock data — dropped
+     the Reddit-API tasks since Reddit is the only free source for real
+     per-ticker posts and we're avoiding that dependency. -->
 
-- [ ] **Backend** — Add a Reddit fetcher + endpoint for per-ticker representative posts. Use the Reddit API (free OAuth "script" app; `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` env vars in `app/config.py` + `.env.example`) to fetch recent posts mentioning a ticker from the tracked subreddits, sorted by upvotes (= "weighted by reach"). Expose `GET /api/stocks/{ticker}/posts` returning the top N (Pydantic `SocialPostOut`: title, subreddit, upvotes, url, created_at). Return `available=false` (not an error) when Reddit is unreachable or credentials are missing, so the frontend falls back to mock.
-- [ ] **Frontend** — On the stock detail page, wire the "Why this sentiment" section to `GET /api/stocks/{ticker}/posts` (client fn in `lib/api.ts`), showing representative posts weighted by reach (upvotes). Fall back to the mock posts from the ticker profile when live data is unavailable.
 
 ## Done
 

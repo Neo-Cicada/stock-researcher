@@ -1,6 +1,6 @@
 import { colors } from "./colors";
 import type { MarketSeasonView, Theme, TrendingRowView } from "./dashboard";
-import type { Fundamental } from "./types";
+import type { Fundamental, NewsItem } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -160,6 +160,65 @@ export function apiFundamentalsToView(h: TickerHistoryAPI): Fundamental[] {
   push("BETA", f.beta != null ? f.beta.toFixed(2) : null);
 
   return out;
+}
+
+// ---- Per-ticker news (real headlines from Finnhub company news) ----
+
+export interface TickerNewsAPI {
+  title: string;
+  summary: string;
+  source: string;
+  url: string;
+  published_at: number | null;
+}
+
+/** Compact "2h ago" / "3d ago" label from a unix-seconds timestamp. */
+function relativeTime(unixSeconds: number | null): string {
+  if (unixSeconds == null) return "";
+  const diffMs = Date.now() - unixSeconds * 1000;
+  if (diffMs < 0) return "just now";
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+/** Map a /api/stocks/{ticker}/news item into the WhyThisSentiment view shape. */
+export function apiNewsToView(n: TickerNewsAPI): NewsItem {
+  return {
+    src: n.source || "news",
+    time: relativeTime(n.published_at),
+    title: n.title,
+    url: n.url,
+  };
+}
+
+/**
+ * Fetch recent real headlines for a ticker from the backend (Finnhub company
+ * news). The optional `name` hint improves relevance ranking. Returns an empty
+ * array on any error, so callers can show a quiet "no headlines" note.
+ */
+export async function fetchTickerNews(
+  ticker: string,
+  name?: string,
+): Promise<NewsItem[]> {
+  try {
+    const params = new URLSearchParams();
+    if (name) params.set("name", name);
+    const qs = params.toString();
+    const res = await fetch(
+      `${API_BASE}/api/stocks/${encodeURIComponent(ticker)}/news${qs ? `?${qs}` : ""}`,
+    );
+    if (!res.ok) return [];
+    const data: TickerNewsAPI[] = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map(apiNewsToView);
+  } catch {
+    return [];
+  }
 }
 
 // ---- Market Season (CNN Fear & Greed + social bullishness) ----

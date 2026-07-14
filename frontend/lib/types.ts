@@ -28,6 +28,14 @@ export interface Post {
   up: string;
 }
 
+// A real ticker headline from the backend Finnhub company-news feed.
+export interface NewsItem {
+  src: string;
+  time: string;
+  title: string;
+  url: string;
+}
+
 export interface TrendingRow {
   ticker: string;
   name: string;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTickerProfile } from "@/lib/tickers";
 import { buildPriceSeries, buildRealCandles } from "@/lib/series";
-import { fetchTickerHistory, apiFundamentalsToView } from "@/lib/api";
+import { fetchTickerHistory, apiFundamentalsToView, fetchTickerNews } from "@/lib/api";
 import { compositeScore } from "@/lib/composite";
 import ScorecardPillars from "@/components/ScorecardPillars";
 import StockHeader from "@/components/StockHeader";
@@ -25,10 +25,15 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   const series = buildPriceSeries(profile);
   const composite = compositeScore(profile.pillars);
 
-  // Fetch real price/fundamentals from the backend (yfinance). Falls back to
-  // the mock `series`/`profile.fundamentals` when unavailable. Sentiment and
-  // mention-volume charts always stay mock (they are Reddit crowd data).
-  const history = await fetchTickerHistory(profile.ticker);
+  // Fetch real price/fundamentals (yfinance) and real headlines (Finnhub) from
+  // the backend in parallel. Price falls back to the mock `series`/
+  // `profile.fundamentals` when unavailable; news falls back to a quiet note.
+  // The sentiment and mention-volume charts always stay mock (Reddit crowd
+  // data). `profile.name` is passed as the news relevance-ranking hint.
+  const [history, news] = await Promise.all([
+    fetchTickerHistory(profile.ticker),
+    fetchTickerNews(profile.ticker, profile.name),
+  ]);
   const real = history ? buildRealCandles(history.candles) : null;
   const realFundamentals = history ? apiFundamentalsToView(history) : [];
 
@@ -106,7 +111,7 @@ export default async function StockDetailPage({ params }: { params: Params }) {
           <FundamentalsGrid fundamentals={fundamentals} />
         </div>
 
-        <WhyThisSentiment posts={profile.posts} insufficient={profile.insufficient} quietNote={profile.quietNote} />
+        <WhyThisSentiment ticker={profile.ticker} news={news} />
       </section>
 
       <section style={{ marginTop: 52, borderTop: "1.5px solid #211C15", paddingTop: 28 }}>

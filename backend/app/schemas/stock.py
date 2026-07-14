@@ -43,3 +43,11 @@ class TickerHistoryOut(BaseModel):
     day_change_pct: float | None = None
     candles: list[CandleOut] = []
     fundamentals: TickerFundamentals | None = None
+
+
+class TickerNewsItem(BaseModel):
+    title: str
+    summary: str = ""
+    source: str = ""
+    url: str
+    published_at: int | None = None

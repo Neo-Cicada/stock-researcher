@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka"
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     DEBUG: bool = False
+    FINNHUB_API_KEY: str = ""
 
 
 settings = Settings()

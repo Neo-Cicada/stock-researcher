@@ -2,8 +2,8 @@
 
 A stock-research app with a Japanese woodblock-print (浮世絵) aesthetic. Kabuka surfaces **trending tickers** from Reddit chatter and renders **live market data** for individual stocks — candlestick charts, fundamentals, and sentiment — all drawn as hand-tuned SVG on a rice-paper canvas.
 
-- **Real data:** trending mention counts / ranks / velocity from [ApeWisdom](https://apewisdom.io), and live prices, OHLC candles, and fundamentals from Yahoo Finance (via `yfinance`).
-- **Mock data:** sentiment timelines, scorecard pillars, and social posts are generated from a seeded RNG (deterministic across server and client), pending real sources.
+- **Real data:** trending mention counts / ranks / velocity from [ApeWisdom](https://apewisdom.io); live prices, OHLC candles, and fundamentals from Yahoo Finance (via `yfinance`); overall market mood from CNN's Fear & Greed index; and market themes + per-ticker headlines from [Finnhub](https://finnhub.io).
+- **Mock data:** sentiment timelines, mention-volume bars, scorecard pillars, and social posts are generated from a seeded RNG (deterministic across server and client), pending real sources.
 
 The repo also ships **kabuka-agent**, an autonomous coding agent that wraps the `claude` CLI to plan → execute → verify changes to this codebase.
 
@@ -18,14 +18,14 @@ stock-researcher/
 └── docker-compose.yml   Postgres + backend
 ```
 
-**Data flow:** a backend background task fetches trending tickers from ApeWisdom every 10 minutes and stores snapshots in Postgres. The dashboard (`/`) is a server component that reads `/api/reddit/trending` at render time (falling back to mock rows if the backend is down). The stock detail page (`/stock/[ticker]`) fetches live candles + fundamentals from `/api/stocks/{ticker}/history` (yfinance), falling back per-field to mock data when a ticker is unknown or the provider is unreachable.
+**Data flow:** three backend background tasks keep Postgres fresh — ApeWisdom trending every 10 minutes, yfinance prices every 5 minutes, and a CNN Fear & Greed market-season snapshot every hour. The dashboard (`/`) is a server component that reads `/api/reddit/trending` and `/api/market/*` at render time (falling back to mock rows if the backend is down). The stock detail page (`/stock/[ticker]`) fetches live candles + fundamentals from `/api/stocks/{ticker}/history` (yfinance) and recent headlines from `/api/stocks/{ticker}/news` (Finnhub), falling back per-field to mock data when a ticker is unknown or a provider is unreachable.
 
 ## Tech stack
 
 | | |
 |---|---|
 | **Frontend** | Next.js 16, React 19, TypeScript (strict), pure inline styles, hand-rolled SVG charts |
-| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0 (async) + asyncpg, Alembic, PostgreSQL 16, `httpx`, `yfinance`, managed with `uv` |
+| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0 (async) + asyncpg, Alembic, PostgreSQL 16, `httpx` (ApeWisdom / CNN / Finnhub), `yfinance`, managed with `uv` |
 | **Agent** | Python + `rich`, wraps the `claude` CLI (uses your Claude subscription — no API key) |
 
 ## Getting started
@@ -85,6 +85,7 @@ Open http://localhost:3000.
 | `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka` | Async Postgres DSN |
 | `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed origins (JSON array) |
 | `DEBUG` | `false` | Debug mode |
+| `FINNHUB_API_KEY` | _(empty)_ | Free [Finnhub](https://finnhub.io) key powering market themes + per-ticker news; endpoints return empty (frontend falls back to mock) when unset |
 
 **Frontend:**
 
@@ -102,8 +103,11 @@ All endpoints are prefixed with `/api`:
 | `GET` | `/api/stocks/` | List all stocks |
 | `GET` | `/api/stocks/{ticker}` | Get a single stock |
 | `GET` | `/api/stocks/{ticker}/history` | Live daily OHLC candles + fundamentals (yfinance); `available:false` for unknown tickers |
+| `GET` | `/api/stocks/{ticker}/news` | Recent headlines for a ticker (Finnhub company news; optional `name` hint); empty when unavailable |
 | `GET` | `/api/reddit/trending` | Trending tickers with aggregated mentions/ranks (params: `source`, `limit`) |
 | `POST` | `/api/reddit/fetch` | Manually trigger an ApeWisdom fetch |
+| `GET` | `/api/market/season` | Overall market mood — CNN Fear & Greed (+ VIX / put-call / breadth) and a live social bullish % |
+| `GET` | `/api/market/themes` | Today's market themes distilled from Finnhub general news; empty when unavailable |
 
 ### Example: `GET /api/stocks/NVDA/history`
 

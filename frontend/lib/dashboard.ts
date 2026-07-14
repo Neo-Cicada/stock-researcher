@@ -14,6 +14,9 @@ export interface TrendingRowView {
   mentions: string;
   velocity: string;
   subreddits: string[];
+  // Numeric values for sorting (null when unavailable).
+  dayPct: number | null;
+  mentionCount: number;
 }
 
 export function getTrendingRows(): TrendingRowView[] {
@@ -38,6 +41,8 @@ export function getTrendingRows(): TrendingRowView[] {
       mentions: profile.mentionsLabel,
       velocity: profile.velocityLabel,
       subreddits: [...subs],
+      dayPct,
+      mentionCount: profile.mentions,
     };
   });
 }

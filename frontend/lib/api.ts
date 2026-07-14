@@ -64,6 +64,8 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
     mentions: t.mention_count.toLocaleString(),
     velocity,
     subreddits: t.sources,
+    dayPct,
+    mentionCount: t.mention_count,
   };
 }
 

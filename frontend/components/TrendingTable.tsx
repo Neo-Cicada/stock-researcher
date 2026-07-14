@@ -32,16 +32,53 @@ const FILTER_LABELS: Record<Filter, string> = {
   options: "r/options",
 };
 
+const SORTS = ["mentions", "day"] as const;
+type SortKey = (typeof SORTS)[number];
+
+const SORT_LABELS: Record<SortKey, string> = {
+  mentions: "mention count",
+  day: "day movement",
+};
+
+function sortRows(rows: TrendingRowView[], key: SortKey, dir: "asc" | "desc"): TrendingRowView[] {
+  const factor = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (key === "mentions") {
+      return factor * (a.mentionCount - b.mentionCount);
+    }
+    // Day movement: rows with no price data sort to the bottom regardless of dir.
+    const av = a.dayPct;
+    const bv = b.dayPct;
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return factor * (av - bv);
+  });
+}
+
 export default function TrendingTable({ rows: initialRows }: { rows: TrendingRowView[] }) {
   const [rows, setRows] = useState<TrendingRowView[]>(initialRows);
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [page, setPage] = useState(0);
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("mentions");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const cache = useRef<Partial<Record<Filter, TrendingRowView[]>>>({ all: initialRows });
 
-  const totalPages = Math.ceil(rows.length / ROWS_PER_PAGE);
-  const pageRows = rows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+  const sortedRows = sortRows(rows, sortKey, sortDir);
+  const totalPages = Math.ceil(sortedRows.length / ROWS_PER_PAGE);
+  const pageRows = sortedRows.slice(page * ROWS_PER_PAGE, (page + 1) * ROWS_PER_PAGE);
+
+  const handleSort = (key: SortKey) => {
+    setPage(0);
+    if (key === sortKey) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
 
   const btnBase: React.CSSProperties = {
     fontFamily: "var(--font-mono)",
@@ -181,6 +218,31 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
         ))}
       </div>
 
+      {/* Sort controls */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", margin: "0 0 14px" }}>
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 9.5,
+            letterSpacing: "0.18em",
+            opacity: 0.5,
+            marginRight: 2,
+          }}
+        >
+          SORT
+        </span>
+        {SORTS.map((s) => (
+          <button
+            key={s}
+            onClick={() => handleSort(s)}
+            style={sortKey === s ? chipActive : chipBase}
+          >
+            {SORT_LABELS[s]}
+            {sortKey === s ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <TrendingSkeleton />
       ) : (
@@ -247,9 +309,9 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
                 ← prev
               </button>
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, opacity: 0.6 }}>
-                {rows.length === 0
+                {sortedRows.length === 0
                   ? "0 of 0"
-                  : `${page * ROWS_PER_PAGE + 1}–${Math.min((page + 1) * ROWS_PER_PAGE, rows.length)} of ${rows.length}`}
+                  : `${page * ROWS_PER_PAGE + 1}–${Math.min((page + 1) * ROWS_PER_PAGE, sortedRows.length)} of ${sortedRows.length}`}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}

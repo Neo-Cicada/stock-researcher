@@ -12,23 +12,16 @@ just give a goal: `--autonomous --goal "..."`.
 
 ## Todo
 
-### Feature: Today's Themes (real news)
+### Live verification (must be run where there IS internet — my sandbox has none)
 
-> Note: the autonomous agent attempted the backend task and it **failed its lint
-> gate + got hard-reverted**, then the run hit the $10 budget. The
-> `FINNHUB_API_KEY` field has since been added to `app/config.py` manually
-> (backend was crashing on the `.env` key with `extra_forbidden`), so the
-> backend task below should **not re-add that field** — just add it to
-> `.env.example`. Both tasks still need doing, and must be **verified against the
-> live Finnhub API**, not just linted.
+Both features are code-complete, lint-clean, type-checked, and pass the
+production build + unit tests, but the *live data path* was never exercised
+because this environment has no outbound network. Run these against a real
+backend (Postgres up, `FINNHUB_API_KEY` in `backend/.env`):
 
-- [ ] **Backend** — Add a Finnhub news fetcher + endpoint for "Today's Themes". Call Finnhub `GET /api/v1/news?category=general` (free tier, 60 req/min) using the existing `FINNHUB_API_KEY` setting (already in `app/config.py`; add it to `.env.example`). Cluster/summarize recent headlines into a handful of themes, cache in-process (or a small table), and expose `GET /api/market/themes` (Pydantic `ThemeOut`). Return an empty/cached list on failure so the frontend can fall back.
-- [ ] **Frontend** — Wire the dashboard "Today's Themes" section to `GET /api/market/themes` (client fn in `lib/api.ts`), rendering each theme with its headline/source link. Fall back to the existing mock themes from `lib/dashboard.ts` when unavailable.
-
-### Verification (do after the endpoints exist — the agent only lints)
-
-- [ ] Start the backend and confirm `GET /api/market/season` returns live CNN Fear & Greed data (real gauge score + VIX/Put-Call/Breadth), not the last-stored fallback.
-- [ ] Confirm `GET /api/market/themes` returns real Finnhub headlines with the key loaded.
+- [ ] `GET /api/market/season` returns live CNN Fear & Greed data (real gauge score + VIX/Put-Call/Breadth `available: true`), not the fallback. If it 403s, the CNN `User-Agent` header is the thing to check.
+- [ ] `GET /api/market/themes` returns real Finnhub headlines (non-empty array with `title`/`source`/`url`).
+- [ ] Load the dashboard (`/`) and confirm the Market Season gauge and Today's Themes sidebar show live values, not the mock fallback.
 
 <!-- "Why this sentiment" (per-stock social posts) stays on mock data — dropped
      the Reddit-API tasks since Reddit is the only free source for real
@@ -47,3 +40,5 @@ just give a goal: `--autonomous --goal "..."`.
 - [x] Add a small loading/`aria-busy` state to the trending refresh button so screen readers announce the refresh (commit fa443e6).
 - [x] Market Season gauge — **Backend**: `MarketSeason` model + migration, CNN Fear & Greed fetcher, hourly refresh task, `GET /api/market/season` (commit 4bba4d3). *(Committed + lint-clean; not yet verified against live CNN data.)*
 - [x] Market Season gauge — **Frontend**: `fetchMarketSeason()` + dashboard gauge wired with mock fallback (commit df56901). *(Committed + lint-clean; not yet verified in the running app.)*
+- [x] Today's Themes — **Backend**: `finnhub_fetcher` service (general news → themes, in-process TTL cache), `ThemeOut` schema, `GET /api/market/themes`, `.env.example` entry, unit tests. *(Lint + tests + import all pass; live Finnhub call not exercised — no network in build env.)*
+- [x] Today's Themes — **Frontend**: `fetchThemes()`/`apiThemeToView` in `lib/api.ts`, dashboard wired with mock fallback, `ThemesColumn` source link. *(tsc + eslint + production build all pass.)*

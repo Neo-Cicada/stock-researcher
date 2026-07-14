@@ -12,15 +12,23 @@ just give a goal: `--autonomous --goal "..."`.
 
 ## Todo
 
-### Feature: Market Season gauge (real data)
-
-- [ ] **Backend** — Add a market-sentiment fetcher + endpoint for the Market Season gauge. Fetch the CNN Fear & Greed Index from `https://production.dataviz.cnn.com/index/fearandgreed/graphdata` (free, no key; send a browser `User-Agent` header or it 403s). Parse the overall `fear_and_greed` score (the `68 /100` "SEASON GAUGE" + `greed` rating) and the sub-indicators `market_volatility` (VIX), `put_call_options` (Put/Call), and `market_breadth` (Breadth adv %). Also compute a "Social aggregate" bullish % from the ApeWisdom sentiment already ingested in `trending_snapshots`. Store one latest-row via a `MarketSeason` model + Alembic migration, refresh from a background task (hourly is plenty), and expose `GET /api/market/season` (Pydantic `MarketSeasonOut`). Return the last-stored value if the upstream call fails.
-- [ ] **Frontend** — Wire the dashboard "The Market Season" gauge to `GET /api/market/season` (add a client fn in `lib/api.ts`). Render the season label (`花盛り Bloom` + mood word), the `68 /100` gauge, and the four metrics (VIX `14.2 −0.8`, Put/Call `0.62`, Breadth `71%`, Social aggregate `62 bullish`). Fall back to the mock `MARKET_STATE` from `lib/dashboard.ts` when the endpoint is unavailable. Map the 0–100 score to the woodblock season labels.
-
 ### Feature: Today's Themes (real news)
 
-- [ ] **Backend** — Add a Finnhub news fetcher + endpoint for "Today's Themes". Call Finnhub `GET /api/v1/news?category=general` (free tier, 60 req/min) using a `FINNHUB_API_KEY` env var (add to `app/config.py` + `.env.example`). Cluster/summarize recent headlines into a handful of themes, cache in-process (or a small table), and expose `GET /api/market/themes` (Pydantic `ThemeOut`). Return an empty/cached list on failure so the frontend can fall back.
+> Note: the autonomous agent attempted the backend task and it **failed its lint
+> gate + got hard-reverted**, then the run hit the $10 budget. The
+> `FINNHUB_API_KEY` field has since been added to `app/config.py` manually
+> (backend was crashing on the `.env` key with `extra_forbidden`), so the
+> backend task below should **not re-add that field** — just add it to
+> `.env.example`. Both tasks still need doing, and must be **verified against the
+> live Finnhub API**, not just linted.
+
+- [ ] **Backend** — Add a Finnhub news fetcher + endpoint for "Today's Themes". Call Finnhub `GET /api/v1/news?category=general` (free tier, 60 req/min) using the existing `FINNHUB_API_KEY` setting (already in `app/config.py`; add it to `.env.example`). Cluster/summarize recent headlines into a handful of themes, cache in-process (or a small table), and expose `GET /api/market/themes` (Pydantic `ThemeOut`). Return an empty/cached list on failure so the frontend can fall back.
 - [ ] **Frontend** — Wire the dashboard "Today's Themes" section to `GET /api/market/themes` (client fn in `lib/api.ts`), rendering each theme with its headline/source link. Fall back to the existing mock themes from `lib/dashboard.ts` when unavailable.
+
+### Verification (do after the endpoints exist — the agent only lints)
+
+- [ ] Start the backend and confirm `GET /api/market/season` returns live CNN Fear & Greed data (real gauge score + VIX/Put-Call/Breadth), not the last-stored fallback.
+- [ ] Confirm `GET /api/market/themes` returns real Finnhub headlines with the key loaded.
 
 <!-- "Why this sentiment" (per-stock social posts) stays on mock data — dropped
      the Reddit-API tasks since Reddit is the only free source for real
@@ -37,3 +45,5 @@ just give a goal: `--autonomous --goal "..."`.
 - [x] Add a backend pytest that calls the `_fetch_ticker_detail` NaN/empty-history guards with a fake ticker and asserts it returns `None` (commit c01caa4).
 - [x] Show the real company `name` from the history endpoint in the stock detail header (commit cbf65f1).
 - [x] Add a small loading/`aria-busy` state to the trending refresh button so screen readers announce the refresh (commit fa443e6).
+- [x] Market Season gauge — **Backend**: `MarketSeason` model + migration, CNN Fear & Greed fetcher, hourly refresh task, `GET /api/market/season` (commit 4bba4d3). *(Committed + lint-clean; not yet verified against live CNN data.)*
+- [x] Market Season gauge — **Frontend**: `fetchMarketSeason()` + dashboard gauge wired with mock fallback (commit df56901). *(Committed + lint-clean; not yet verified in the running app.)*

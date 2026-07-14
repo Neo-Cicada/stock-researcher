@@ -17,3 +17,12 @@ class MarketSeasonOut(BaseModel):
     breadth: SubIndicator = SubIndicator()
     social_bullish_pct: float | None = None
     fetched_at: datetime | None = None
+
+
+class ThemeOut(BaseModel):
+    title: str
+    summary: str = ""
+    source: str = ""
+    url: str = ""
+    tickers: list[str] = []
+    published_at: int | None = None

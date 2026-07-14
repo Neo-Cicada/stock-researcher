@@ -48,6 +48,9 @@ export interface Theme {
   title: string;
   summary: string;
   tickers: string[];
+  // Present only for live themes from Finnhub; mock themes omit these.
+  url?: string;
+  source?: string;
 }
 
 export const TODAYS_THEMES: Theme[] = [

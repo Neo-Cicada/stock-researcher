@@ -1,5 +1,5 @@
 import { colors } from "./colors";
-import type { MarketSeasonView, TrendingRowView } from "./dashboard";
+import type { MarketSeasonView, Theme, TrendingRowView } from "./dashboard";
 import type { Fundamental } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -214,6 +214,50 @@ export async function fetchMarketSeason(): Promise<MarketSeasonView | null> {
     const data: MarketSeasonAPI = await res.json();
     if (!data.available || data.score == null) return null;
     return apiMarketSeasonToView(data);
+  } catch {
+    return null;
+  }
+}
+
+export interface ThemeAPI {
+  title: string;
+  summary: string;
+  source: string;
+  url: string;
+  tickers: string[];
+  published_at: number | null;
+}
+
+// The gauge's stamp/rotation are purely decorative (the backend has no such
+// concept), so assign them deterministically by position from a small pool.
+const THEME_STAMPS = ["勢", "金", "噂", "波", "風"];
+const THEME_ROTATIONS = [-3, 2, -2, 3, -1];
+
+/** Map a /api/market/themes item into the sidebar's Theme view shape. */
+export function apiThemeToView(t: ThemeAPI, i: number): Theme {
+  return {
+    stamp: THEME_STAMPS[i % THEME_STAMPS.length],
+    rotation: THEME_ROTATIONS[i % THEME_ROTATIONS.length],
+    title: t.title,
+    summary: t.summary,
+    tickers: t.tickers,
+    url: t.url || undefined,
+    source: t.source || undefined,
+  };
+}
+
+/**
+ * Fetch today's market themes from Finnhub-backed news. Returns null on any
+ * error or when the backend returns no themes, so callers can fall back to the
+ * mock TODAYS_THEMES.
+ */
+export async function fetchThemes(): Promise<Theme[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/market/themes`);
+    if (!res.ok) return null;
+    const data: ThemeAPI[] = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data.map(apiThemeToView);
   } catch {
     return null;
   }

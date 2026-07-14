@@ -35,6 +35,25 @@ export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; q
             </h3>
           </div>
           <p style={{ fontSize: 12, lineHeight: 1.55, margin: "8px 0 10px 0", opacity: 0.78, overflowWrap: "break-word", wordBreak: "break-word" }}>{theme.summary}</p>
+          {theme.url && theme.source && (
+            <a
+              href={theme.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 10.5,
+                letterSpacing: "0.04em",
+                color: "#211C15",
+                opacity: 0.55,
+                textDecoration: "none",
+                display: "inline-block",
+                marginBottom: 10,
+              }}
+            >
+              {theme.source} ↗
+            </a>
+          )}
           <div className="kbk-theme-tickers">
             {theme.tickers.map((t) => (
               <span

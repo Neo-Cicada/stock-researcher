@@ -2,7 +2,7 @@ import MarketSeasonBranch from "@/components/MarketSeasonBranch";
 import TrendingTable from "@/components/TrendingTable";
 import ThemesColumn from "@/components/ThemesColumn";
 import { getTrendingRows, TODAYS_THEMES, THEMES_QUIET_NOTE, MARKET_STATE } from "@/lib/dashboard";
-import { fetchTrending, apiRowToView, fetchMarketSeason } from "@/lib/api";
+import { fetchTrending, apiRowToView, fetchMarketSeason, fetchThemes } from "@/lib/api";
 
 async function getInitialRows() {
   try {
@@ -19,8 +19,17 @@ async function getMarketSeason() {
   return (await fetchMarketSeason()) ?? MARKET_STATE;
 }
 
+async function getThemes() {
+  // Falls back to the mock TODAYS_THEMES when the endpoint is unavailable.
+  return (await fetchThemes()) ?? TODAYS_THEMES;
+}
+
 export default async function DashboardPage() {
-  const [rows, season] = await Promise.all([getInitialRows(), getMarketSeason()]);
+  const [rows, season, themes] = await Promise.all([
+    getInitialRows(),
+    getMarketSeason(),
+    getThemes(),
+  ]);
 
   return (
     <main data-screen-label="Dashboard" className="kbk-page-main">
@@ -51,7 +60,7 @@ export default async function DashboardPage() {
 
       <section className="kbk-dash-grid">
         <TrendingTable rows={rows} />
-        <ThemesColumn themes={TODAYS_THEMES} quietNote={THEMES_QUIET_NOTE} />
+        <ThemesColumn themes={themes} quietNote={THEMES_QUIET_NOTE} />
       </section>
 
       <footer className="kbk-footer">

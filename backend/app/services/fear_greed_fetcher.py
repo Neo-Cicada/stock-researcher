@@ -9,9 +9,12 @@ from app.models.reddit import TrendingSnapshot
 
 logger = logging.getLogger(__name__)
 
-FEAR_GREED_URL = "https://production.dataviz.cnn.com/index/fearandgreed/graphdata"
+FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
 
-# CNN's dataviz endpoint 403s without a realistic browser User-Agent.
+# CNN's dataviz endpoint is behind Fastly bot detection: a bare request 418s
+# ("You're a bot"). It needs a realistic browser User-Agent *plus* an
+# Accept-Language and a cnn.com Referer to pass. (The host is .cnn.io, not
+# .cnn.com — the .com variant is NXDOMAIN.)
 BROWSER_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -19,6 +22,8 @@ BROWSER_HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     ),
     "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.cnn.com/",
 }
 
 

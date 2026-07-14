@@ -10,14 +10,16 @@ from sqlalchemy import func, select
 from app.config import settings
 from app.database import async_session, engine
 from app.models.reddit import TrendingSnapshot
-from app.routers import reddit, stocks
+from app.routers import market, reddit, stocks
 from app.services.apewisdom_fetcher import fetch_all_filters
+from app.services.fear_greed_fetcher import refresh_market_season
 from app.services.price_fetcher import fetch_prices_async
 
 logger = logging.getLogger(__name__)
 
 FETCH_INTERVAL = 600  # 10 minutes
 PRICE_FETCH_INTERVAL = 300  # 5 minutes
+MARKET_FETCH_INTERVAL = 3600  # 1 hour
 
 
 async def periodic_apewisdom_fetch() -> None:
@@ -62,17 +64,34 @@ async def periodic_price_fetch() -> None:
         await asyncio.sleep(PRICE_FETCH_INTERVAL)
 
 
+async def periodic_market_season_fetch() -> None:
+    """Background task: refresh the market-season snapshot every hour."""
+    while True:
+        try:
+            async with async_session() as db:
+                row = await refresh_market_season(db)
+                if row is not None:
+                    logger.info("Market season fetch: score=%s", row.score)
+                else:
+                    logger.info("Market season fetch: upstream unavailable")
+        except Exception:
+            logger.exception("Periodic market season fetch failed")
+        await asyncio.sleep(MARKET_FETCH_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     apewisdom_task = asyncio.create_task(periodic_apewisdom_fetch())
     price_task = asyncio.create_task(periodic_price_fetch())
-    logger.info("Started periodic ApeWisdom and price fetch tasks")
+    market_task = asyncio.create_task(periodic_market_season_fetch())
+    logger.info("Started periodic ApeWisdom, price, and market season fetch tasks")
     try:
         yield
     finally:
         apewisdom_task.cancel()
         price_task.cancel()
-        for task in (apewisdom_task, price_task):
+        market_task.cancel()
+        for task in (apewisdom_task, price_task, market_task):
             try:
                 await task
             except asyncio.CancelledError:
@@ -92,6 +111,7 @@ app.add_middleware(
 
 app.include_router(stocks.router)
 app.include_router(reddit.router)
+app.include_router(market.router)
 
 
 @app.get("/api/health")

@@ -1,5 +1,5 @@
 import { colors } from "./colors";
-import type { TrendingRowView } from "./dashboard";
+import type { MarketSeasonView, TrendingRowView } from "./dashboard";
 import type { Fundamental } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -158,4 +158,63 @@ export function apiFundamentalsToView(h: TickerHistoryAPI): Fundamental[] {
   push("BETA", f.beta != null ? f.beta.toFixed(2) : null);
 
   return out;
+}
+
+// ---- Market Season (CNN Fear & Greed + social bullishness) ----
+
+export interface SubIndicatorAPI {
+  score: number | null;
+  rating: string | null;
+}
+
+export interface MarketSeasonAPI {
+  available: boolean;
+  score: number | null;
+  rating: string | null;
+  vix: SubIndicatorAPI;
+  put_call: SubIndicatorAPI;
+  breadth: SubIndicatorAPI;
+  social_bullish_pct: number | null;
+  fetched_at: string | null;
+}
+
+// The backend exposes each sub-indicator as CNN's 0–100 sub-index score
+// (not a raw VIX level / put-call ratio), so render it as a compact integer.
+function subScore(s: SubIndicatorAPI): string {
+  return s.score != null ? String(Math.round(s.score)) : "—";
+}
+
+/** Map the /api/market/season payload into the gauge's view shape. */
+export function apiMarketSeasonToView(m: MarketSeasonAPI): MarketSeasonView {
+  const score = m.score ?? 50;
+  return {
+    fearGreed: Math.round(score),
+    direction: score >= 50 ? "bullish" : "bearish",
+    vix: subScore(m.vix),
+    // No VIX change figure is available from the endpoint.
+    vixChange: "",
+    putCall: subScore(m.put_call),
+    breadth: subScore(m.breadth),
+    socialAggregate:
+      m.social_bullish_pct != null
+        ? `${Math.round(m.social_bullish_pct)} bullish`
+        : "—",
+  };
+}
+
+/**
+ * Fetch the current market season (CNN Fear & Greed + social bullishness).
+ * Returns null on any error or when the backend reports it is unavailable,
+ * so callers can fall back to the mock MARKET_STATE.
+ */
+export async function fetchMarketSeason(): Promise<MarketSeasonView | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/market/season`);
+    if (!res.ok) return null;
+    const data: MarketSeasonAPI = await res.json();
+    if (!data.available || data.score == null) return null;
+    return apiMarketSeasonToView(data);
+  } catch {
+    return null;
+  }
 }

@@ -2,7 +2,7 @@ import MarketSeasonBranch from "@/components/MarketSeasonBranch";
 import TrendingTable from "@/components/TrendingTable";
 import ThemesColumn from "@/components/ThemesColumn";
 import { getTrendingRows, TODAYS_THEMES, THEMES_QUIET_NOTE, MARKET_STATE } from "@/lib/dashboard";
-import { fetchTrending, apiRowToView } from "@/lib/api";
+import { fetchTrending, apiRowToView, fetchMarketSeason, fetchThemes } from "@/lib/api";
 
 async function getInitialRows() {
   try {
@@ -14,8 +14,22 @@ async function getInitialRows() {
   }
 }
 
+async function getMarketSeason() {
+  // Falls back to the mock MARKET_STATE when the endpoint is unavailable.
+  return (await fetchMarketSeason()) ?? MARKET_STATE;
+}
+
+async function getThemes() {
+  // Falls back to the mock TODAYS_THEMES when the endpoint is unavailable.
+  return (await fetchThemes()) ?? TODAYS_THEMES;
+}
+
 export default async function DashboardPage() {
-  const rows = await getInitialRows();
+  const [rows, season, themes] = await Promise.all([
+    getInitialRows(),
+    getMarketSeason(),
+    getThemes(),
+  ]);
 
   return (
     <main data-screen-label="Dashboard" className="kbk-page-main">
@@ -24,13 +38,13 @@ export default async function DashboardPage() {
       </span>
 
       <MarketSeasonBranch
-        fearGreed={MARKET_STATE.fearGreed}
-        direction={MARKET_STATE.direction}
-        vix={MARKET_STATE.vix}
-        vixChange={MARKET_STATE.vixChange}
-        putCall={MARKET_STATE.putCall}
-        breadth={MARKET_STATE.breadth}
-        socialAggregate={MARKET_STATE.socialAggregate}
+        fearGreed={season.fearGreed}
+        direction={season.direction}
+        vix={season.vix}
+        vixChange={season.vixChange}
+        putCall={season.putCall}
+        breadth={season.breadth}
+        socialAggregate={season.socialAggregate}
       />
 
       <svg viewBox="0 0 1100 8" preserveAspectRatio="none" style={{ width: "100%", height: 7, display: "block", margin: "10px 0 30px 0" }}>
@@ -46,7 +60,7 @@ export default async function DashboardPage() {
 
       <section className="kbk-dash-grid">
         <TrendingTable rows={rows} />
-        <ThemesColumn themes={TODAYS_THEMES} quietNote={THEMES_QUIET_NOTE} />
+        <ThemesColumn themes={themes} quietNote={THEMES_QUIET_NOTE} />
       </section>
 
       <footer className="kbk-footer">

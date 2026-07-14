@@ -1,5 +1,5 @@
 import { colors } from "./colors";
-import type { TrendingRowView } from "./dashboard";
+import type { MarketSeasonView, Theme, TrendingRowView } from "./dashboard";
 import type { Fundamental } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -64,6 +64,8 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
     mentions: t.mention_count.toLocaleString(),
     velocity,
     subreddits: t.sources,
+    dayPct,
+    mentionCount: t.mention_count,
   };
 }
 
@@ -158,4 +160,107 @@ export function apiFundamentalsToView(h: TickerHistoryAPI): Fundamental[] {
   push("BETA", f.beta != null ? f.beta.toFixed(2) : null);
 
   return out;
+}
+
+// ---- Market Season (CNN Fear & Greed + social bullishness) ----
+
+export interface SubIndicatorAPI {
+  score: number | null;
+  rating: string | null;
+}
+
+export interface MarketSeasonAPI {
+  available: boolean;
+  score: number | null;
+  rating: string | null;
+  vix: SubIndicatorAPI;
+  put_call: SubIndicatorAPI;
+  breadth: SubIndicatorAPI;
+  social_bullish_pct: number | null;
+  fetched_at: string | null;
+}
+
+// The backend exposes each sub-indicator as CNN's 0–100 sub-index score
+// (not a raw VIX level / put-call ratio), so render it as a compact integer.
+function subScore(s: SubIndicatorAPI): string {
+  return s.score != null ? String(Math.round(s.score)) : "—";
+}
+
+/** Map the /api/market/season payload into the gauge's view shape. */
+export function apiMarketSeasonToView(m: MarketSeasonAPI): MarketSeasonView {
+  const score = m.score ?? 50;
+  return {
+    fearGreed: Math.round(score),
+    direction: score >= 50 ? "bullish" : "bearish",
+    vix: subScore(m.vix),
+    // No VIX change figure is available from the endpoint.
+    vixChange: "",
+    putCall: subScore(m.put_call),
+    breadth: subScore(m.breadth),
+    socialAggregate:
+      m.social_bullish_pct != null
+        ? `${Math.round(m.social_bullish_pct)} bullish`
+        : "—",
+  };
+}
+
+/**
+ * Fetch the current market season (CNN Fear & Greed + social bullishness).
+ * Returns null on any error or when the backend reports it is unavailable,
+ * so callers can fall back to the mock MARKET_STATE.
+ */
+export async function fetchMarketSeason(): Promise<MarketSeasonView | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/market/season`);
+    if (!res.ok) return null;
+    const data: MarketSeasonAPI = await res.json();
+    if (!data.available || data.score == null) return null;
+    return apiMarketSeasonToView(data);
+  } catch {
+    return null;
+  }
+}
+
+export interface ThemeAPI {
+  title: string;
+  summary: string;
+  source: string;
+  url: string;
+  tickers: string[];
+  published_at: number | null;
+}
+
+// The gauge's stamp/rotation are purely decorative (the backend has no such
+// concept), so assign them deterministically by position from a small pool.
+const THEME_STAMPS = ["勢", "金", "噂", "波", "風"];
+const THEME_ROTATIONS = [-3, 2, -2, 3, -1];
+
+/** Map a /api/market/themes item into the sidebar's Theme view shape. */
+export function apiThemeToView(t: ThemeAPI, i: number): Theme {
+  return {
+    stamp: THEME_STAMPS[i % THEME_STAMPS.length],
+    rotation: THEME_ROTATIONS[i % THEME_ROTATIONS.length],
+    title: t.title,
+    summary: t.summary,
+    tickers: t.tickers,
+    url: t.url || undefined,
+    source: t.source || undefined,
+  };
+}
+
+/**
+ * Fetch today's market themes from Finnhub-backed news. Returns null on any
+ * error or when the backend returns no themes, so callers can fall back to the
+ * mock TODAYS_THEMES.
+ */
+export async function fetchThemes(): Promise<Theme[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/market/themes`);
+    if (!res.ok) return null;
+    const data: ThemeAPI[] = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data.map(apiThemeToView);
+  } catch {
+    return null;
+  }
 }

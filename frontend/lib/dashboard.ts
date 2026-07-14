@@ -14,6 +14,9 @@ export interface TrendingRowView {
   mentions: string;
   velocity: string;
   subreddits: string[];
+  // Numeric values for sorting (null when unavailable).
+  dayPct: number | null;
+  mentionCount: number;
 }
 
 export function getTrendingRows(): TrendingRowView[] {
@@ -38,6 +41,8 @@ export function getTrendingRows(): TrendingRowView[] {
       mentions: profile.mentionsLabel,
       velocity: profile.velocityLabel,
       subreddits: [...subs],
+      dayPct,
+      mentionCount: profile.mentions,
     };
   });
 }
@@ -48,6 +53,9 @@ export interface Theme {
   title: string;
   summary: string;
   tickers: string[];
+  // Present only for live themes from Finnhub; mock themes omit these.
+  url?: string;
+  source?: string;
 }
 
 export const TODAYS_THEMES: Theme[] = [
@@ -76,11 +84,22 @@ export const TODAYS_THEMES: Theme[] = [
 
 export const THEMES_QUIET_NOTE = "Small-caps theme — fewer than 40 mentions today.";
 
-// Mock "current market state" — in a live app this would come from a real
-// fear/greed feed; here it's a fixed deterministic value for the demo.
-export const MARKET_STATE = {
+export interface MarketSeasonView {
+  fearGreed: number;
+  direction: "bullish" | "bearish";
+  vix: string;
+  vixChange: string;
+  putCall: string;
+  breadth: string;
+  socialAggregate: string;
+}
+
+// Mock "current market state" — used as the fallback when the backend
+// /api/market/season endpoint is unavailable. Live data (CNN Fear & Greed +
+// social bullishness) is mapped into this same shape in lib/api.ts.
+export const MARKET_STATE: MarketSeasonView = {
   fearGreed: 68,
-  direction: "bullish" as "bullish" | "bearish",
+  direction: "bullish",
   vix: "14.2",
   vixChange: "−0.8",
   putCall: "0.62",

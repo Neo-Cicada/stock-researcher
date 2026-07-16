@@ -22,10 +22,15 @@ const linkStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const NAV_LINKS = [
+  { href: "/", label: "DASHBOARD" },
+  { href: "/events", label: "EVENTS" },
+  { href: "/earnings", label: "EARNINGS" },
+] as const;
+
 export default function Header() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const onDash = pathname === "/";
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -128,10 +133,12 @@ export default function Header() {
       </Link>
       <span className="kbk-header-tagline">RICE-PAPER MARKET RESEARCH</span>
       <nav className="kbk-header-nav">
-        <Link href="/" style={linkStyle}>
-          {onDash && <span style={dotStyle} />}
-          <span>DASHBOARD</span>
-        </Link>
+        {NAV_LINKS.map(({ href, label }) => (
+          <Link key={href} href={href} style={linkStyle}>
+            {pathname === href && <span style={dotStyle} />}
+            <span>{label}</span>
+          </Link>
+        ))}
         <form
           onSubmit={handleSearch}
           className="kbk-header-search"

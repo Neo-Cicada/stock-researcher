@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 FINNHUB_NEWS_URL = "https://finnhub.io/api/v1/news"
 FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news"
+FINNHUB_ECONOMIC_CALENDAR_URL = "https://finnhub.io/api/v1/calendar/economic"
+FINNHUB_EARNINGS_CALENDAR_URL = "https://finnhub.io/api/v1/calendar/earnings"
 
 # In-process TTL cache (mirrors price_fetcher._detail_cache): Finnhub's free tier
 # is 60 req/min, and general market news barely changes minute to minute.
@@ -19,10 +21,20 @@ _themes_cache: dict = {"data": None, "ts": 0.0}
 # Per-ticker company-news cache: {ticker: {"data": [...], "ts": float}}.
 _company_news_cache: dict[str, dict] = {}
 
+# Calendars change at most a few times a day, so a longer TTL is fine.
+_CALENDAR_TTL_SECONDS = 3600  # 1 hour
+_economic_cache: dict = {"data": None, "ts": 0.0}
+_earnings_cache: dict = {"data": None, "ts": 0.0}
+
 MAX_THEMES = 5
 MAX_COMPANY_NEWS = 8
 # How far back to ask Finnhub for company headlines.
 COMPANY_NEWS_LOOKBACK_DAYS = 14
+# How far ahead to look on the calendars.
+ECONOMIC_LOOKAHEAD_DAYS = 14
+EARNINGS_LOOKAHEAD_DAYS = 7
+MAX_ECONOMIC_EVENTS = 20
+MAX_EARNINGS_EVENTS = 30
 
 
 async def _fetch_general_news() -> list[dict] | None:
@@ -234,3 +246,147 @@ async def get_ticker_news(ticker: str, name: str | None = None) -> list[dict]:
 
     _company_news_cache[key] = {"data": items, "ts": now}
     return items
+
+
+async def _fetch_calendar(url: str, params: dict) -> dict | None:
+    """GET a Finnhub calendar endpoint, or ``None`` on any failure.
+
+    Returns ``None`` (rather than raising) when the key is missing or the
+    request fails — including when the free tier 403s on a premium calendar —
+    so the caller can fall back to the last cached list.
+    """
+    api_key = settings.FINNHUB_API_KEY
+    if not api_key:
+        logger.warning("FINNHUB_API_KEY not set; skipping Finnhub calendar fetch")
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, params={**params, "token": api_key})
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception:
+        logger.exception("Finnhub calendar fetch failed (%s)", url)
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def _as_float(value) -> float | None:
+    """Coerce a Finnhub numeric field to float, or ``None`` if missing/blank."""
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_economic_event(row: dict) -> dict | None:
+    """Map a Finnhub economic-calendar row into an event dict, or ``None``."""
+    event = (row.get("event") or "").strip()
+    if not event:
+        return None
+    return {
+        "event": event,
+        "country": (row.get("country") or "").strip(),
+        "time": (row.get("time") or "").strip(),
+        "impact": (row.get("impact") or "").strip(),
+        "actual": _as_float(row.get("actual")),
+        "estimate": _as_float(row.get("estimate")),
+        "previous": _as_float(row.get("prev")),
+        "unit": (row.get("unit") or "").strip(),
+    }
+
+
+async def get_economic_events() -> list[dict]:
+    """Return upcoming economic-calendar events (CPI, FOMC, jobs, …) from Finnhub.
+
+    Covers today through ``ECONOMIC_LOOKAHEAD_DAYS`` ahead, ordered by time.
+    Cached in-process for ``_CALENDAR_TTL_SECONDS``; on an upstream failure the
+    last good list is served (empty list if we never fetched successfully) so
+    the frontend can fall back to mock. Note the economic calendar is a Finnhub
+    premium endpoint — on a free key the request 403s and this returns ``[]``.
+    """
+    now = time.time()
+    cached = _economic_cache["data"]
+    if cached is not None and now - _economic_cache["ts"] < _CALENDAR_TTL_SECONDS:
+        return cached
+
+    frm = date.today()
+    to = frm + timedelta(days=ECONOMIC_LOOKAHEAD_DAYS)
+    data = await _fetch_calendar(
+        FINNHUB_ECONOMIC_CALENDAR_URL,
+        {"from": frm.isoformat(), "to": to.isoformat()},
+    )
+    if data is None:
+        return cached or []
+
+    rows = data.get("economicCalendar") or []
+    events: list[dict] = []
+    for row in rows:
+        event = _to_economic_event(row)
+        if event is not None:
+            events.append(event)
+
+    events.sort(key=lambda e: e["time"])
+    events = events[:MAX_ECONOMIC_EVENTS]
+
+    _economic_cache["data"] = events
+    _economic_cache["ts"] = now
+    return events
+
+
+def _to_earnings_event(row: dict) -> dict | None:
+    """Map a Finnhub earnings-calendar row into an event dict, or ``None``."""
+    symbol = (row.get("symbol") or "").strip().upper()
+    if not symbol:
+        return None
+    return {
+        "symbol": symbol,
+        "date": (row.get("date") or "").strip(),
+        # amc (after market close) / bmo (before market open) / dmh (during).
+        "hour": (row.get("hour") or "").strip(),
+        "eps_estimate": _as_float(row.get("epsEstimate")),
+        "eps_actual": _as_float(row.get("epsActual")),
+        "revenue_estimate": _as_float(row.get("revenueEstimate")),
+        "revenue_actual": _as_float(row.get("revenueActual")),
+    }
+
+
+async def get_earnings_calendar() -> list[dict]:
+    """Return upcoming earnings reports from Finnhub's earnings calendar.
+
+    Covers today through ``EARNINGS_LOOKAHEAD_DAYS`` ahead, ordered by date.
+    Cached in-process for ``_CALENDAR_TTL_SECONDS``; on an upstream failure the
+    last good list is served (empty list if we never fetched successfully) so
+    the frontend can fall back to mock.
+    """
+    now = time.time()
+    cached = _earnings_cache["data"]
+    if cached is not None and now - _earnings_cache["ts"] < _CALENDAR_TTL_SECONDS:
+        return cached
+
+    frm = date.today()
+    to = frm + timedelta(days=EARNINGS_LOOKAHEAD_DAYS)
+    data = await _fetch_calendar(
+        FINNHUB_EARNINGS_CALENDAR_URL,
+        {"from": frm.isoformat(), "to": to.isoformat()},
+    )
+    if data is None:
+        return cached or []
+
+    rows = data.get("earningsCalendar") or []
+    events: list[dict] = []
+    for row in rows:
+        event = _to_earnings_event(row)
+        if event is not None:
+            events.append(event)
+
+    events.sort(key=lambda e: e["date"])
+    events = events[:MAX_EARNINGS_EVENTS]
+
+    _earnings_cache["data"] = events
+    _earnings_cache["ts"] = now
+    return events

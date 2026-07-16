@@ -4,12 +4,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.market import MarketSeason
-from app.schemas.market import MarketSeasonOut, SubIndicator, ThemeOut
+from app.schemas.market import (
+    EarningsEventOut,
+    EconomicEventOut,
+    MarketSeasonOut,
+    SubIndicator,
+    ThemeOut,
+)
 from app.services.fear_greed_fetcher import (
     compute_social_bullish_pct,
     refresh_market_season,
 )
-from app.services.finnhub_fetcher import get_todays_themes
+from app.services.finnhub_fetcher import (
+    get_earnings_calendar,
+    get_economic_events,
+    get_todays_themes,
+)
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
@@ -56,3 +66,24 @@ async def market_themes():
     so the frontend falls back to its mock themes.
     """
     return await get_todays_themes()
+
+
+@router.get("/events", response_model=list[EconomicEventOut])
+async def market_events():
+    """Upcoming economic-calendar events (CPI, FOMC, jobs, …) from Finnhub.
+
+    Returns an empty list when Finnhub is unreachable, unconfigured, or the
+    calendar is premium-gated on the current key, so the frontend falls back to
+    its mock events.
+    """
+    return await get_economic_events()
+
+
+@router.get("/earnings", response_model=list[EarningsEventOut])
+async def market_earnings():
+    """Upcoming earnings reports from Finnhub's earnings calendar.
+
+    Returns an empty list when Finnhub is unreachable or no key is configured,
+    so the frontend falls back to its mock earnings schedule.
+    """
+    return await get_earnings_calendar()

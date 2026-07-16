@@ -1,7 +1,14 @@
 import asyncio
 
 from app.services import finnhub_fetcher
-from app.services.finnhub_fetcher import _to_theme, get_todays_themes
+from app.services.finnhub_fetcher import (
+    _to_earnings_event,
+    _to_economic_event,
+    _to_theme,
+    get_earnings_calendar,
+    get_economic_events,
+    get_todays_themes,
+)
 
 
 def test_to_theme_maps_fields_and_splits_tickers():
@@ -53,3 +60,106 @@ def test_get_todays_themes_prefers_ticker_tagged(monkeypatch):
     themes = asyncio.run(get_todays_themes())
 
     assert [t["title"] for t in themes] == ["NVDA earnings beat", "General macro note"]
+
+
+# ---- Economic calendar ----
+
+
+def test_to_economic_event_maps_and_coerces_numbers():
+    row = {
+        "event": "CPI m/m",
+        "country": "US",
+        "time": "2026-07-16 12:30:00",
+        "impact": "high",
+        "actual": "",
+        "estimate": "0.3",
+        "prev": 0.4,
+        "unit": "%",
+    }
+    ev = _to_economic_event(row)
+    assert ev["event"] == "CPI m/m"
+    assert ev["country"] == "US"
+    assert ev["actual"] is None  # blank string -> None
+    assert ev["estimate"] == 0.3
+    assert ev["previous"] == 0.4
+
+
+def test_to_economic_event_skips_empty_event():
+    assert _to_economic_event({"event": "  ", "country": "US"}) is None
+
+
+def test_get_economic_events_empty_on_fetch_failure(monkeypatch):
+    """Upstream failure / premium-gated key with no cache -> empty list."""
+    monkeypatch.setattr(finnhub_fetcher, "_economic_cache", {"data": None, "ts": 0.0})
+
+    async def _none(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _none)
+    assert asyncio.run(get_economic_events()) == []
+
+
+def test_get_economic_events_sorts_by_time(monkeypatch):
+    monkeypatch.setattr(finnhub_fetcher, "_economic_cache", {"data": None, "ts": 0.0})
+
+    async def _fake(*args, **kwargs):
+        return {
+            "economicCalendar": [
+                {"event": "FOMC Rate Decision", "time": "2026-07-18 18:00:00"},
+                {"event": "CPI m/m", "time": "2026-07-16 12:30:00"},
+            ]
+        }
+
+    monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _fake)
+    events = asyncio.run(get_economic_events())
+    assert [e["event"] for e in events] == ["CPI m/m", "FOMC Rate Decision"]
+
+
+# ---- Earnings calendar ----
+
+
+def test_to_earnings_event_maps_and_uppercases_symbol():
+    row = {
+        "symbol": "nvda",
+        "date": "2026-07-17",
+        "hour": "amc",
+        "epsEstimate": "1.25",
+        "epsActual": None,
+        "revenueEstimate": 4.2e10,
+    }
+    ev = _to_earnings_event(row)
+    assert ev["symbol"] == "NVDA"
+    assert ev["hour"] == "amc"
+    assert ev["eps_estimate"] == 1.25
+    assert ev["eps_actual"] is None
+    assert ev["revenue_actual"] is None
+
+
+def test_to_earnings_event_skips_empty_symbol():
+    assert _to_earnings_event({"symbol": "", "date": "2026-07-17"}) is None
+
+
+def test_get_earnings_calendar_empty_on_fetch_failure(monkeypatch):
+    monkeypatch.setattr(finnhub_fetcher, "_earnings_cache", {"data": None, "ts": 0.0})
+
+    async def _none(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _none)
+    assert asyncio.run(get_earnings_calendar()) == []
+
+
+def test_get_earnings_calendar_sorts_by_date(monkeypatch):
+    monkeypatch.setattr(finnhub_fetcher, "_earnings_cache", {"data": None, "ts": 0.0})
+
+    async def _fake(*args, **kwargs):
+        return {
+            "earningsCalendar": [
+                {"symbol": "TSLA", "date": "2026-07-20"},
+                {"symbol": "NVDA", "date": "2026-07-17"},
+            ]
+        }
+
+    monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _fake)
+    events = asyncio.run(get_earnings_calendar())
+    assert [e["symbol"] for e in events] == ["NVDA", "TSLA"]

@@ -75,3 +75,21 @@ export interface Candle {
   sent: number;
   vol: number;
 }
+
+// A single institutional holder (13F/N-PORT filer), from Yahoo Finance or mock.
+export interface InstitutionalHolder {
+  name: string;
+  shares: number;
+  value: number; // market value, USD
+  changePct: number; // quarter-over-quarter change in shares
+}
+
+export interface InstitutionalOwnershipView {
+  ticker: string;
+  ownershipPct: number; // % of shares held by institutions
+  institutionsCount: number;
+  totalShares: number; // total shares across the shown top holders
+  holders: InstitutionalHolder[];
+  // "yahoo" for live data; undefined for the deterministic mock.
+  source?: string;
+}

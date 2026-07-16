@@ -68,6 +68,23 @@ a:hover {
   }
 }
 
+/* Staggered "brush-stroke" reveal for list items (earnings almanac, etc.). */
+@keyframes kabuka-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-rise] {
+  opacity: 0;
+  animation: kabuka-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 [data-petal] {
   animation-fill-mode: forwards;
 }
@@ -92,6 +109,11 @@ a:hover {
   [data-skel] {
     animation: none !important;
     opacity: 0.25 !important;
+  }
+  [data-rise] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

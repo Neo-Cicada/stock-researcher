@@ -12,11 +12,22 @@ from app.models.price import StockPrice
 
 logger = logging.getLogger(__name__)
 
+# ApeWisdom trending data feeds us plenty of junk/delisted symbols (WFH, FI, OG,
+# …), and yfinance logs a noisy "possibly delisted; no price data found" ERROR
+# for each one. We already detect missing data and fall back gracefully, so
+# those messages are pure log noise — quiet the yfinance logger above ERROR.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
 BATCH_SIZE = 50
 
 # In-process TTL cache for single-ticker detail (ticker -> (expires_at, payload)).
 DETAIL_CACHE_TTL = 600  # 10 minutes
 _detail_cache: dict[str, tuple[float, dict | None]] = {}
+
+# Institutional ownership changes only quarterly (13F/N-PORT), so cache longer.
+INSTITUTIONAL_CACHE_TTL = 3600  # 1 hour
+_institutional_cache: dict[str, tuple[float, dict | None]] = {}
+MAX_HOLDERS = 8
 
 
 def _download_prices(tickers: list[str]) -> dict[str, dict]:
@@ -215,4 +226,104 @@ async def fetch_ticker_detail_async(ticker: str) -> dict | None:
     payload = await loop.run_in_executor(None, partial(_fetch_ticker_detail, ticker))
 
     _detail_cache[ticker] = (now + DETAIL_CACHE_TTL, payload)
+    return payload
+
+
+def _num(value) -> float | None:
+    """Coerce a pandas/py value to float, or ``None`` for missing/NaN."""
+    if value is None:
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f else None  # NaN != NaN
+
+
+def _institutional_from_frames(ticker: str, major, holders) -> dict | None:
+    """Build the ownership payload from yfinance ``major_holders`` /
+    ``institutional_holders`` frames. Pure (no I/O) so it is unit-testable.
+
+    ``major`` is a DataFrame indexed by a ``Breakdown`` label with a ``Value``
+    column; ``holders`` is a DataFrame with ``Holder`` / ``Shares`` / ``Value``
+    / ``pctChange`` columns. Either may be ``None``/empty. Returns ``None`` when
+    there is nothing usable, so the caller can fall back to mock.
+    """
+    ownership_pct = None
+    institutions_count = None
+    if major is not None and getattr(major, "empty", True) is False:
+        try:
+            pct = _num(major.loc["institutionsPercentHeld", "Value"])
+            ownership_pct = round(pct * 100, 2) if pct is not None else None
+        except (KeyError, TypeError):
+            pass
+        try:
+            ic = _num(major.loc["institutionsCount", "Value"])
+            institutions_count = int(ic) if ic is not None else None
+        except (KeyError, TypeError):
+            pass
+
+    holder_list: list[dict] = []
+    if holders is not None and getattr(holders, "empty", True) is False:
+        for _, row in holders.iterrows():
+            name = str(row.get("Holder") or "").strip()
+            if not name:
+                continue
+            shares = _num(row.get("Shares"))
+            change = _num(row.get("pctChange"))
+            # yfinance reports pctChange as a fraction (0.02 = +2%).
+            change_pct = round(change * 100, 2) if change is not None else None
+            holder_list.append(
+                {
+                    "name": name,
+                    "shares": int(shares) if shares is not None else None,
+                    "value": _num(row.get("Value")),
+                    "change_pct": change_pct,
+                }
+            )
+    holder_list = holder_list[:MAX_HOLDERS]
+
+    if not holder_list and ownership_pct is None:
+        return None
+
+    total_shares = sum(h["shares"] for h in holder_list if h["shares"]) or None
+    return {
+        "ticker": ticker.upper(),
+        "ownership_pct": ownership_pct,
+        "institutions_count": institutions_count,
+        "total_shares": total_shares,
+        "holders": holder_list,
+    }
+
+
+def _fetch_institutional(ticker: str) -> dict | None:
+    """Synchronous institutional-ownership fetch via yfinance. Run in executor.
+
+    Pulls top institutional holders + the institutional-ownership summary from
+    Yahoo Finance (free, no key). Returns ``None`` on any failure or when the
+    ticker has no coverage, so the caller can fall back to mock.
+    """
+    try:
+        tk = yf.Ticker(ticker)
+        return _institutional_from_frames(
+            ticker, tk.major_holders, tk.institutional_holders
+        )
+    except Exception:
+        logger.exception("yfinance institutional fetch failed for %s", ticker)
+        return None
+
+
+async def fetch_institutional_async(ticker: str) -> dict | None:
+    """Fetch institutional ownership + top holders, cached for 1 hour."""
+    ticker = ticker.upper()
+    now = time.monotonic()
+
+    cached = _institutional_cache.get(ticker)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    loop = asyncio.get_event_loop()
+    payload = await loop.run_in_executor(None, partial(_fetch_institutional, ticker))
+
+    _institutional_cache[ticker] = (now + INSTITUTIONAL_CACHE_TTL, payload)
     return payload

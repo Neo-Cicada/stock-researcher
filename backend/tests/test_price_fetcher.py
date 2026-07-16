@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 
 from app.services import price_fetcher
-from app.services.price_fetcher import _fetch_ticker_detail
+from app.services.price_fetcher import (
+    _fetch_ticker_detail,
+    _institutional_from_frames,
+)
 
 
 class _FakeTicker:
@@ -42,3 +45,31 @@ def test_fetch_ticker_detail_all_nan_returns_none(monkeypatch):
     _patch_ticker(monkeypatch, hist)
 
     assert _fetch_ticker_detail("FAKE") is None
+
+
+def test_institutional_from_frames_maps_yfinance_shapes():
+    """major_holders + institutional_holders frames -> normalized ownership."""
+    major = pd.DataFrame(
+        {"Value": [0.70754, 7509.0, 0.03984]},
+        index=["institutionsPercentHeld", "institutionsCount", "insidersPercentHeld"],
+    )
+    holders = pd.DataFrame(
+        {
+            "Holder": ["Blackrock Inc.", "Vanguard", ""],
+            "Shares": [1_925_533_174, 1_538_550_382, np.nan],
+            "Value": [4.09e11, 3.26e11, np.nan],
+            "pctChange": [-0.0094, 1.0, np.nan],
+        }
+    )
+    data = _institutional_from_frames("nvda", major, holders)
+    assert data["ticker"] == "NVDA"
+    assert data["ownership_pct"] == 70.75  # fraction -> percent
+    assert data["institutions_count"] == 7509
+    # Blank-name row is skipped; pctChange scaled to percent.
+    assert [h["name"] for h in data["holders"]] == ["Blackrock Inc.", "Vanguard"]
+    assert data["holders"][0]["change_pct"] == -0.94
+    assert data["total_shares"] == 1_925_533_174 + 1_538_550_382
+
+
+def test_institutional_from_frames_none_when_empty():
+    assert _institutional_from_frames("nvda", None, pd.DataFrame()) is None

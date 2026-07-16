@@ -1,6 +1,16 @@
 import { colors } from "./colors";
-import type { MarketSeasonView, Theme, TrendingRowView } from "./dashboard";
-import type { Fundamental, NewsItem } from "./types";
+import type {
+  EarningsEventView,
+  EconomicEventView,
+  MarketSeasonView,
+  Theme,
+  TrendingRowView,
+} from "./dashboard";
+import type {
+  Fundamental,
+  InstitutionalOwnershipView,
+  NewsItem,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -319,6 +329,193 @@ export async function fetchThemes(): Promise<Theme[] | null> {
     const data: ThemeAPI[] = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;
     return data.map(apiThemeToView);
+  } catch {
+    return null;
+  }
+}
+
+// ---- Economic events (CPI, FOMC, jobs) — Finnhub economic calendar ----
+
+export interface EconomicEventAPI {
+  event: string;
+  country: string;
+  time: string;
+  impact: string;
+  actual: number | null;
+  estimate: number | null;
+  previous: number | null;
+  unit: string;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** "2026-07-16" → "Jul 16" (falls back to the raw string on odd input). */
+function fmtMonthDay(dateStr: string): string {
+  const parts = (dateStr ?? "").split("-");
+  if (parts.length !== 3) return dateStr ?? "";
+  const month = MONTHS[Number(parts[1]) - 1] ?? parts[1];
+  return `${month} ${Number(parts[2])}`;
+}
+
+/** "2026-07-16" → "Thu" (empty string when unparseable). */
+function weekdayOf(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? "" : WEEKDAYS[d.getUTCDay()];
+}
+
+/** Format a calendar number with its unit, or "—" when absent. */
+function fmtEventValue(n: number | null, unit: string): string {
+  if (n == null) return "—";
+  const num = Number.isInteger(n) ? String(n) : n.toFixed(2);
+  return unit ? `${num}${unit}` : num;
+}
+
+/** Map a /api/market/events item into the events board view shape. */
+export function apiEventToView(e: EconomicEventAPI): EconomicEventView {
+  const [datePart, timePart] = (e.time || "").split(" ");
+  return {
+    event: e.event,
+    country: e.country,
+    dateLabel: fmtMonthDay(datePart) || e.time,
+    weekday: weekdayOf(datePart),
+    time: timePart ? timePart.slice(0, 5) : "",
+    impact: (e.impact || "").toLowerCase(),
+    estimate: fmtEventValue(e.estimate, e.unit),
+    previous: fmtEventValue(e.previous, e.unit),
+  };
+}
+
+/**
+ * Fetch upcoming economic-calendar events from the backend. Returns null on any
+ * error or when the backend returns no events (including a premium-gated
+ * Finnhub key), so callers can fall back to the mock TODAYS_EVENTS.
+ */
+export async function fetchEconomicEvents(): Promise<EconomicEventView[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/market/events`);
+    if (!res.ok) return null;
+    const data: EconomicEventAPI[] = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data.map(apiEventToView);
+  } catch {
+    return null;
+  }
+}
+
+// ---- Earnings schedule — Finnhub earnings calendar ----
+
+export interface EarningsEventAPI {
+  symbol: string;
+  date: string;
+  hour: string;
+  eps_estimate: number | null;
+  eps_actual: number | null;
+  revenue_estimate: number | null;
+  revenue_actual: number | null;
+}
+
+const EARNINGS_HOUR_LABELS: Record<string, string> = {
+  amc: "after close",
+  bmo: "before open",
+  dmh: "during hours",
+};
+
+/** Compact revenue figure ("$42.0B"), or "—" when absent. */
+function fmtRevenue(n: number | null): string {
+  if (n == null) return "—";
+  return fmtMarketCap(n);
+}
+
+/** Map a /api/market/earnings item into the earnings board view shape. */
+export function apiEarningsToView(e: EarningsEventAPI): EarningsEventView {
+  const sessionKey = (e.hour || "").toLowerCase();
+  return {
+    symbol: e.symbol,
+    dateLabel: fmtMonthDay(e.date),
+    weekday: weekdayOf(e.date),
+    sessionKey,
+    sessionLabel: EARNINGS_HOUR_LABELS[sessionKey] ?? "",
+    epsEstimate: e.eps_estimate != null ? e.eps_estimate.toFixed(2) : "—",
+    revenueEstimate: fmtRevenue(e.revenue_estimate),
+  };
+}
+
+/**
+ * Fetch the upcoming earnings schedule from the backend. Returns null on any
+ * error or when the backend returns no earnings, so callers can fall back to
+ * the mock EARNINGS_SCHEDULE.
+ */
+export async function fetchEarnings(): Promise<EarningsEventView[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/market/earnings`);
+    if (!res.ok) return null;
+    const data: EarningsEventAPI[] = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data.map(apiEarningsToView);
+  } catch {
+    return null;
+  }
+}
+
+// ---- Institutional ownership (Yahoo Finance, via yfinance) ----
+
+export interface InstitutionalHolderAPI {
+  name: string;
+  shares: number | null;
+  value: number | null;
+  change_pct: number | null;
+}
+
+export interface InstitutionalOwnershipAPI {
+  ticker: string;
+  available: boolean;
+  ownership_pct: number | null;
+  institutions_count: number | null;
+  total_shares: number | null;
+  holders: InstitutionalHolderAPI[];
+}
+
+/** Map the /institutional payload into the ownership chart view shape. */
+export function apiInstitutionalToView(
+  d: InstitutionalOwnershipAPI,
+): InstitutionalOwnershipView | null {
+  if (!d.available || !Array.isArray(d.holders) || d.holders.length === 0) {
+    return null;
+  }
+  const holders = d.holders.map((h) => ({
+    name: h.name,
+    shares: h.shares ?? 0,
+    value: h.value ?? 0,
+    changePct: h.change_pct ?? 0,
+  }));
+  const totalShares =
+    d.total_shares ?? holders.reduce((sum, h) => sum + h.shares, 0);
+  return {
+    ticker: d.ticker,
+    ownershipPct: d.ownership_pct ?? 0,
+    institutionsCount: d.institutions_count ?? holders.length,
+    totalShares,
+    holders,
+    source: "yahoo",
+  };
+}
+
+/**
+ * Fetch institutional ownership for a ticker from the backend (Yahoo Finance via
+ * yfinance). Returns null on any error or when the backend reports it is
+ * unavailable (no coverage), so callers can fall back to the deterministic mock.
+ */
+export async function fetchInstitutionalOwnership(
+  ticker: string,
+): Promise<InstitutionalOwnershipView | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/stocks/${encodeURIComponent(ticker)}/institutional`,
+    );
+    if (!res.ok) return null;
+    const data: InstitutionalOwnershipAPI = await res.json();
+    return apiInstitutionalToView(data);
   } catch {
     return null;
   }

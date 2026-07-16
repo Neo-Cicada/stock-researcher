@@ -1,6 +1,11 @@
 import { makeRng, clamp } from "./rng";
 import { colors } from "./colors";
-import type { Candle, TickerProfile } from "./types";
+import type {
+  Candle,
+  InstitutionalHolder,
+  InstitutionalOwnershipView,
+  TickerProfile,
+} from "./types";
 
 const SESSIONS = 42;
 const CHART_W = 712;
@@ -258,4 +263,40 @@ export function seasonLabel(fg: number): { label: string; note: string } {
   if (fg < 55) return { label: "開花 Opening", note: "neutral" };
   if (fg < 78) return { label: "花盛り Bloom", note: "greed" };
   return { label: "満開 Full Bloom", note: "extreme greed" };
+}
+
+// The usual suspects at the top of most 13F filings, in rough real-world order.
+const INSTITUTION_POOL = [
+  "Vanguard Group",
+  "BlackRock",
+  "State Street",
+  "Geode Capital",
+  "Fidelity (FMR)",
+  "Morgan Stanley",
+];
+
+/**
+ * Deterministic mock institutional ownership for a ticker, used when the Yahoo
+ * Finance data is unavailable. Seeded off the profile so server and client agree.
+ */
+export function buildInstitutionalMock(profile: TickerProfile): InstitutionalOwnershipView {
+  const rng = makeRng(profile.seed + 7331);
+  const ownershipPct = Math.round((45 + rng() * 45) * 10) / 10; // 45–90%
+  const institutionsCount = Math.floor(300 + rng() * 2400);
+
+  const holders: InstitutionalHolder[] = [];
+  let shares = Math.floor(1.8e7 + rng() * 9e7); // top holder's share count
+  for (let i = 0; i < INSTITUTION_POOL.length; i++) {
+    holders.push({
+      name: INSTITUTION_POOL[i],
+      shares,
+      value: Math.round(shares * profile.priceStart),
+      changePct: Math.round((rng() * 12 - 5) * 10) / 10, // −5% … +7%
+    });
+    // Each subsequent holder trails the previous one.
+    shares = Math.floor(shares * (0.58 + rng() * 0.28));
+  }
+
+  const totalShares = holders.reduce((sum, h) => sum + h.shares, 0);
+  return { ticker: profile.ticker, ownershipPct, institutionsCount, totalShares, holders };
 }

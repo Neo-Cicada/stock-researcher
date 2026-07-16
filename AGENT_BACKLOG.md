@@ -20,12 +20,18 @@ fetcher — see below.)_
      the Reddit-API tasks since Reddit is the only free source for real
      per-ticker posts and we're avoiding that dependency. -->
 
+_(Economic-events + earnings tabs shipped 2026-07-16 — see Done.)_
+
 
 ## Done
 
 <!-- The agent does not check these off automatically; move items here yourself
      after reviewing the commits it produced. -->
 
+- [x] **Economic events page `/events` (2026-07-16):** `get_economic_events()` in `finnhub_fetcher.py` (1-hour TTL cache, no-op on unset/premium-gated key), `EconomicEventOut` schema, `GET /api/market/events`, unit tests. Frontend: `fetchEconomicEvents()`/`apiEventToView()` in `lib/api.ts`, `EventsTable.tsx`, standalone `app/events/page.tsx` styled like the dashboard, and an EVENTS nav link in the Header (mock `TODAYS_EVENTS` fallback — the economic calendar is Finnhub-premium so it renders mock on a free key).
+- [x] **Earnings schedule page `/earnings` (2026-07-16):** `get_earnings_calendar()` in `finnhub_fetcher.py`, `EarningsEventOut` schema, `GET /api/market/earnings`, unit tests. Frontend: `fetchEarnings()`/`apiEarningsToView()`, `EarningsTable.tsx` (rows link to `/stock/[ticker]`), standalone `app/earnings/page.tsx`, and an EARNINGS nav link. Verified live end-to-end: `/earnings` rendered real Finnhub tickers (AA/ABT/ADN) with working stock links against a running backend. Backend ruff+pytest and frontend eslint+build all green.
+
+  *(First built these as a tabbed `MarketPanels` sidebar; reworked into standalone `/events` + `/earnings` pages with Header nav per the request.)*
 - [x] **Live verification (2026-07-15):** `GET /api/market/season` returns live CNN Fear & Greed (score 43.7 / "fear", VIX/Put-Call/Breadth `available: true`); `GET /api/market/themes` returns real headlines; dashboard `/` renders the live gauge + Today's Themes. Fixing the season path required a fetcher fix: the host was `production.dataviz.cnn.com` (**NXDOMAIN**) — corrected to `production.dataviz.cnn.io`, and CNN's Fastly bot check now 418s ("You're a bot") without an `Accept-Language` + cnn.com `Referer`, so both headers were added (`app/services/fear_greed_fetcher.py`).
 - [x] Add a `type="button"` attribute to the refresh button in `frontend/components/TrendingTable.tsx` (done in commit 7c7727c).
 - [x] Add a `GET /api/stocks/{ticker}/history` response example to the README API table with a sample JSON payload (commit d13b9f1).

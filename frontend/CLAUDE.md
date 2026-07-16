@@ -25,15 +25,17 @@ There are no tests configured.
 ### Routes (App Router)
 
 - `/` — Dashboard with trending stocks table (real data from backend), market season branch visualization, and themes sidebar
-- `/stock/[ticker]` — Stock detail page with candlestick chart, sentiment timeline, mention volume, fundamentals grid, a composite scorecard section (`ScorecardPillars`, 5 weighted pillars: val/grw/qlt/mom/snt), and social posts
+- `/events` — Economic-events calendar (CPI/FOMC/jobs) from Finnhub as a paginated, date-grouped almanac (`EventsBoard`) with impact discs (high/medium/low); mock fallback
+- `/earnings` — Earnings schedule from Finnhub as a paginated, date-grouped almanac (`EarningsBoard`) with dawn/dusk session discs; rows link to `/stock/[ticker]`; mock fallback
+- `/stock/[ticker]` — Stock detail page with candlestick chart, sentiment timeline, mention volume, fundamentals grid, institutional ownership (`InstitutionalOwnership`: Yahoo Finance donut + top-holder bars, mock fallback), a composite scorecard section (`ScorecardPillars`, 5 weighted pillars: val/grw/qlt/mom/snt), and social posts
 
-There are only these two routes — the scorecard is a section inside the stock detail page, not a separate route.
+The scorecard is a section inside the stock detail page, not a separate route.
 
 ### Data Layer (`lib/`)
 
-- `api.ts` — Backend API client (uses `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`; every fetch degrades to `null`/mock on failure). `fetchTrending(source?, limit?)` → `GET /api/reddit/trending` (`apiRowToView()` merges real mentions with mock price/sentiment/sparkline). `fetchTickerHistory(ticker)` → `/history` (candles + fundamentals). `fetchTickerNews(ticker, name?)` → `/news`. `fetchMarketSeason()` → `/api/market/season`. `fetchThemes()` → `/api/market/themes`. Each has a paired `api*ToView()` mapper.
+- `api.ts` — Backend API client (uses `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`; every fetch degrades to `null`/mock on failure). `fetchTrending(source?, limit?)` → `GET /api/reddit/trending` (`apiRowToView()` merges real mentions with mock price/sentiment/sparkline). `fetchTickerHistory(ticker)` → `/history` (candles + fundamentals). `fetchTickerNews(ticker, name?)` → `/news`. `fetchMarketSeason()` → `/api/market/season`. `fetchThemes()` → `/api/market/themes`. `fetchEconomicEvents()` → `/api/market/events`. `fetchEarnings()` → `/api/market/earnings`. `fetchInstitutionalOwnership(ticker)` → `/api/stocks/{ticker}/institutional` (Yahoo Finance ownership; mock fallback via `buildInstitutionalMock`). Each has a paired `api*ToView()` mapper.
 - `tickers.ts` — Central data source. Contains curated profiles for 8 tickers (NVDA, SMCI, PLTR, GME, TSLA, COIN, AMD, SOFI) with hardcoded fundamentals, pillars, and posts. Any other ticker gets procedurally generated data via `getTickerProfile()`.
-- `series.ts` — Generates candlestick price series, sentiment paths, volume bars, and sparkline SVG paths from a ticker profile. Also contains the "Market Season Branch" blossom/bud logic.
+- `series.ts` — Generates candlestick price series, sentiment paths, volume bars, and sparkline SVG paths from a ticker profile. Also contains the "Market Season Branch" blossom/bud logic and `buildInstitutionalMock` (deterministic institutional-ownership fallback).
 - `dashboard.ts` — Assembles mock trending table rows (used as fallback when backend is unreachable) and theme data for the home page. Exports `MARKET_STATE` (mock fear/greed, VIX, etc.).
 - `composite.ts` — Weighted-average composite score from pillar data.
 - `rng.ts` — Seeded LCG (Park-Miller) and FNV-1a hash. Used everywhere to make renders deterministic across server/client.
@@ -42,18 +44,21 @@ There are only these two routes — the scorecard is a section inside the stock 
 
 ### Frontend–Backend Integration
 
-The dashboard page (`app/page.tsx`) is an async server component that fetches trending data, the market season (`MarketSeasonBranch`), and themes (`ThemesColumn`) from the backend at render time via `lib/api.ts`, each falling back to mock (`dashboard.ts` / `MARKET_STATE`) when unreachable. The `TrendingTable` client component receives initial rows as props and re-fetches from the backend when the user clicks a subreddit filter tab (All, r/wallstreetbets, r/investing, r/daytrading) or changes the sort. The stock detail page (`app/stock/[ticker]/page.tsx`) fetches real candles/fundamentals (`/history`) and headlines (`/news`, feeding `WhyThisSentiment`), falling back to mock; sentiment and mention-volume charts are always mock.
+The dashboard page (`app/page.tsx`) is an async server component that fetches trending data, the market season (`MarketSeasonBranch`), and themes (`ThemesColumn`) from the backend at render time via `lib/api.ts`, each falling back to mock (`dashboard.ts` / `MARKET_STATE`) when unreachable. The `/events` and `/earnings` pages fetch their calendars the same way (`fetchEconomicEvents` / `fetchEarnings`), with mock fallback. The `TrendingTable` client component receives initial rows as props and re-fetches from the backend when the user clicks a subreddit filter tab (All, r/wallstreetbets, r/investing, r/daytrading) or changes the sort. The stock detail page (`app/stock/[ticker]/page.tsx`) fetches real candles/fundamentals (`/history`), headlines (`/news`, feeding `WhyThisSentiment`), and institutional ownership (`/institutional`, feeding `InstitutionalOwnership`), each falling back to mock; sentiment and mention-volume charts are always mock.
 
 ### Components
 
-Most components are server components receiving pre-computed data as props. Three components use `"use client"`: `Header` (for `usePathname`), `TrendingTable` (for filter tabs and pagination), and `ScorecardPillars` (for expand/collapse state). Key visual components:
+Most components are server components receiving pre-computed data as props. Five components use `"use client"`: `Header` (for `usePathname` active nav + search), `TrendingTable` (for filter tabs and pagination), `ScorecardPillars` (for expand/collapse state), and `EarningsBoard` / `EventsBoard` (for `/earnings` and `/events` pagination + date grouping). Key visual components:
 
 - `MarketSeasonBranch` — SVG cherry blossom branch where bloom count reflects the fear/greed index
 - `CandlestickChart` — SVG candlestick chart with pre-computed geometry
 - `PetalMeter` / `BlossomFlower` — Flower-shaped sentiment visualizations
 - `ScorecardPillars` — Five-pillar score breakdown with fill-level bars
 - `ThemesColumn` — Dashboard "Today's Themes" sidebar (real Finnhub news, falls back to mock)
+- `EventsBoard` — Paginated, date-grouped economic-calendar "almanac" for the `/events` page; vermilion/ink/open-ring impact discs (high/medium/low) and a staggered `kabuka-rise` reveal
+- `EarningsBoard` — Paginated, date-grouped earnings "almanac" for the `/earnings` page; vermilion/ink session discs (before open / after close), a staggered `kabuka-rise` reveal, and rows linking to the stock detail page
 - `WhyThisSentiment` — Stock-detail panel showing real per-ticker headlines from `/news`
+- `InstitutionalOwnership` — Stock-detail section: an SVG ownership donut (institutional %) + horizontal top-holder bars, from Yahoo Finance (`/institutional`) with deterministic mock fallback
 - `TrendingSkeleton` — Loading skeleton with ink-fade animation
 
 ### Design System

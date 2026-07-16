@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { getTickerProfile } from "@/lib/tickers";
-import { buildPriceSeries, buildRealCandles } from "@/lib/series";
-import { fetchTickerHistory, apiFundamentalsToView, fetchTickerNews } from "@/lib/api";
+import { buildPriceSeries, buildRealCandles, buildInstitutionalMock } from "@/lib/series";
+import {
+  fetchTickerHistory,
+  apiFundamentalsToView,
+  fetchTickerNews,
+  fetchInstitutionalOwnership,
+} from "@/lib/api";
 import { compositeScore } from "@/lib/composite";
 import ScorecardPillars from "@/components/ScorecardPillars";
 import StockHeader from "@/components/StockHeader";
@@ -9,6 +14,7 @@ import CandlestickChart from "@/components/CandlestickChart";
 import SentimentTimeline from "@/components/SentimentTimeline";
 import MentionVolumeChart from "@/components/MentionVolumeChart";
 import FundamentalsGrid from "@/components/FundamentalsGrid";
+import InstitutionalOwnership from "@/components/InstitutionalOwnership";
 import WhyThisSentiment from "@/components/WhyThisSentiment";
 import BareTwig from "@/components/BareTwig";
 
@@ -30,10 +36,13 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   // `profile.fundamentals` when unavailable; news falls back to a quiet note.
   // The sentiment and mention-volume charts always stay mock (Reddit crowd
   // data). `profile.name` is passed as the news relevance-ranking hint.
-  const [history, news] = await Promise.all([
+  const [history, news, institutional] = await Promise.all([
     fetchTickerHistory(profile.ticker),
     fetchTickerNews(profile.ticker, profile.name),
+    fetchInstitutionalOwnership(profile.ticker),
   ]);
+  // Live Yahoo Finance ownership when available; otherwise deterministic mock.
+  const ownership = institutional ?? buildInstitutionalMock(profile);
   const real = history ? buildRealCandles(history.candles) : null;
   const realFundamentals = history ? apiFundamentalsToView(history) : [];
 
@@ -113,6 +122,8 @@ export default async function StockDetailPage({ params }: { params: Params }) {
 
         <WhyThisSentiment ticker={profile.ticker} news={news} />
       </section>
+
+      <InstitutionalOwnership data={ownership} />
 
       <section style={{ marginTop: 52, borderTop: "1.5px solid #211C15", paddingTop: 28 }}>
         <div className="kbk-scorecard-hdr">

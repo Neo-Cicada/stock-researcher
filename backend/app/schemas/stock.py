@@ -31,6 +31,35 @@ class TickerFundamentals(BaseModel):
     fifty_two_week_high: float | None = None
     fifty_two_week_low: float | None = None
     beta: float | None = None
+    profit_margins: float | None = None
+    return_on_equity: float | None = None
+    debt_to_equity: float | None = None
+    revenue_growth: float | None = None
+    earnings_growth: float | None = None
+
+
+class PillarInputOut(BaseModel):
+    k: str
+    v: str
+
+
+class PillarOut(BaseModel):
+    key: str
+    name: str
+    score: int
+    weight: int
+    hint_text: str
+    inputs: list[PillarInputOut] = []
+
+
+class ScorecardOut(BaseModel):
+    """Live Five-Petal scorecard pillars (Value/Growth/Quality/Momentum).
+
+    The Sentiment pillar has no live source and is added by the frontend.
+    """
+
+    available: bool
+    pillars: list[PillarOut] = []
 
 
 class TickerHistoryOut(BaseModel):
@@ -43,6 +72,7 @@ class TickerHistoryOut(BaseModel):
     day_change_pct: float | None = None
     candles: list[CandleOut] = []
     fundamentals: TickerFundamentals | None = None
+    scorecard: ScorecardOut | None = None
 
 
 class TickerNewsItem(BaseModel):

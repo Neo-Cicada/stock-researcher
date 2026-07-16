@@ -13,6 +13,7 @@ import type {
   Fundamental,
   InstitutionalOwnershipView,
   NewsItem,
+  Pillar,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -134,6 +135,25 @@ export interface TickerFundamentalsAPI {
   fifty_two_week_high: number | null;
   fifty_two_week_low: number | null;
   beta: number | null;
+  profit_margins: number | null;
+  return_on_equity: number | null;
+  debt_to_equity: number | null;
+  revenue_growth: number | null;
+  earnings_growth: number | null;
+}
+
+export interface PillarAPI {
+  key: string;
+  name: string;
+  score: number;
+  weight: number;
+  hint_text: string;
+  inputs: { k: string; v: string }[];
+}
+
+export interface ScorecardAPI {
+  available: boolean;
+  pillars: PillarAPI[];
 }
 
 export interface TickerHistoryAPI {
@@ -146,6 +166,7 @@ export interface TickerHistoryAPI {
   day_change_pct: number | null;
   candles: TickerCandleAPI[];
   fundamentals: TickerFundamentalsAPI | null;
+  scorecard: ScorecardAPI | null;
 }
 
 /**
@@ -203,8 +224,45 @@ export function apiFundamentalsToView(h: TickerHistoryAPI): Fundamental[] {
     f.fifty_two_week_low != null ? `$${f.fifty_two_week_low.toFixed(2)}` : null,
   );
   push("BETA", f.beta != null ? f.beta.toFixed(2) : null);
+  // yfinance reports margins/growth/ROE as fractions (0.24 = 24%).
+  push(
+    "PROFIT MARGIN",
+    f.profit_margins != null ? `${(f.profit_margins * 100).toFixed(1)}%` : null,
+  );
+  push(
+    "ROE",
+    f.return_on_equity != null ? `${(f.return_on_equity * 100).toFixed(1)}%` : null,
+  );
+  push(
+    "REV GROWTH",
+    f.revenue_growth != null ? `${(f.revenue_growth * 100).toFixed(1)}%` : null,
+  );
 
   return out;
+}
+
+/**
+ * Map the live backend scorecard (Value/Growth/Quality/Momentum) into the
+ * `Pillar[]` the ScorecardPillars component renders, appending the mock
+ * Sentiment pillar (crowd data has no live source). Returns null when the
+ * backend couldn't compute a real scorecard, so the caller falls back to the
+ * fully-mock `profile.pillars`.
+ */
+export function apiScorecardToPillars(
+  h: TickerHistoryAPI,
+  sentimentPillar: Pillar,
+): Pillar[] | null {
+  const sc = h.scorecard;
+  if (!sc || !sc.available || sc.pillars.length === 0) return null;
+  const real: Pillar[] = sc.pillars.map((p) => ({
+    key: p.key as Pillar["key"],
+    name: p.name,
+    score: p.score,
+    weight: p.weight,
+    hintText: p.hint_text,
+    inputs: p.inputs,
+  }));
+  return [...real, sentimentPillar];
 }
 
 // ---- Per-ticker news (real headlines from Finnhub company news) ----

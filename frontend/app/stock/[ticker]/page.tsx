@@ -4,6 +4,7 @@ import { buildPriceSeries, buildRealCandles, buildInstitutionalMock } from "@/li
 import {
   fetchTickerHistory,
   apiFundamentalsToView,
+  apiScorecardToPillars,
   fetchTickerNews,
   fetchInstitutionalOwnership,
 } from "@/lib/api";
@@ -29,7 +30,6 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   const { ticker: rawTicker } = await params;
   const profile = getTickerProfile(rawTicker);
   const series = buildPriceSeries(profile);
-  const composite = compositeScore(profile.pillars);
 
   // Fetch real price/fundamentals (yfinance) and real headlines (Finnhub) from
   // the backend in parallel. Price falls back to the mock `series`/
@@ -59,7 +59,18 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   // Prefer the real company name from the live /history payload; fall back to
   // the mock profile name when live data (or the name field) is unavailable.
   const displayName = history?.name || profile.name;
-  const weightsLine = profile.pillars.map((p) => `${p.key.toUpperCase()} ${p.weight}`).join(" · ");
+
+  // Real Five-Petal scorecard from live fundamentals when available: the
+  // backend computes Value/Growth/Quality/Momentum, and the mock Sentiment
+  // pillar (crowd data has no live source) is appended. Falls back to the
+  // fully-mock pillars otherwise.
+  const mockSentiment =
+    profile.pillars.find((p) => p.key === "snt") ?? profile.pillars[profile.pillars.length - 1];
+  const realPillars = history ? apiScorecardToPillars(history, mockSentiment) : null;
+  const pillars = realPillars ?? profile.pillars;
+  const scoreIsLive = realPillars !== null;
+  const composite = compositeScore(pillars);
+  const weightsLine = pillars.map((p) => `${p.key.toUpperCase()} ${p.weight}`).join(" · ");
 
   const subheadingStyle: React.CSSProperties = { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 };
   const subLabelStyle: React.CSSProperties = { fontSize: 10, letterSpacing: "0.22em", opacity: 0.6 };
@@ -128,7 +139,14 @@ export default async function StockDetailPage({ params }: { params: Params }) {
       <section style={{ marginTop: 52, borderTop: "1.5px solid #211C15", paddingTop: 28 }}>
         <div className="kbk-scorecard-hdr">
           <div>
-            <div style={{ fontSize: 11, letterSpacing: "0.22em", opacity: 0.55, marginBottom: 2 }}>SCORECARD · {profile.ticker}</div>
+            <div style={{ fontSize: 11, letterSpacing: "0.22em", opacity: 0.55, marginBottom: 2, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>SCORECARD · {profile.ticker}</span>
+              {scoreIsLive && (
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.14em", color: "#4A7C59", borderWidth: 1, borderStyle: "solid", borderColor: "#4A7C59", borderRadius: 2, padding: "1px 5px" }}>
+                  LIVE
+                </span>
+              )}
+            </div>
             <h2 style={{ fontFamily: "var(--font-mincho)", fontWeight: 800, fontSize: 32, margin: 0 }}>Five-Petal Score</h2>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, paddingBottom: 4 }}>
@@ -141,11 +159,15 @@ export default async function StockDetailPage({ params }: { params: Params }) {
           </div>
         </div>
 
-        <ScorecardPillars pillars={profile.pillars} />
+        <ScorecardPillars pillars={pillars} />
 
         <div className="kbk-scorecard-footer">
           <span style={{ fontSize: 11, opacity: 0.5 }}>Tap a pillar to see its exact inputs. Fill level = score.</span>
-          <span className="kbk-scorecard-footer-right" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.4 }}>model v2.3 · rebalanced monthly</span>
+          <span className="kbk-scorecard-footer-right" style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.4 }}>
+            {scoreIsLive
+              ? "computed from live fundamentals · sentiment = crowd (illustrative)"
+              : "illustrative model · sample data"}
+          </span>
         </div>
       </section>
     </main>

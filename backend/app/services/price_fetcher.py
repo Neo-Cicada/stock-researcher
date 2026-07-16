@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.price import StockPrice
+from app.services.scoring import compute_scorecard
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,12 @@ def _fetch_ticker_detail(ticker: str) -> dict | None:
             "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
             "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
             "beta": info.get("beta"),
+            # Feed the Growth + Quality scorecard pillars (see scoring.py).
+            "profit_margins": info.get("profitMargins"),
+            "return_on_equity": info.get("returnOnEquity"),
+            "debt_to_equity": info.get("debtToEquity"),
+            "revenue_growth": info.get("revenueGrowth"),
+            "earnings_growth": info.get("earningsGrowth"),
         }
 
         return {
@@ -207,6 +214,8 @@ def _fetch_ticker_detail(ticker: str) -> dict | None:
             "day_change_pct": day_change_pct,
             "candles": candles,
             "fundamentals": fundamentals,
+            # Transparent fundamental scorecard (None -> frontend uses mock).
+            "scorecard": compute_scorecard(fundamentals, candles),
         }
     except Exception:
         logger.exception("yfinance detail fetch failed for %s", ticker)

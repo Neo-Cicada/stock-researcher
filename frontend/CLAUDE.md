@@ -27,13 +27,14 @@ There are no tests configured.
 - `/` — Dashboard with trending stocks table (real data from backend), market season branch visualization, and themes sidebar
 - `/events` — Economic-events calendar (CPI/FOMC/jobs) from Finnhub as a paginated, date-grouped almanac (`EventsBoard`) with impact discs (high/medium/low); mock fallback
 - `/earnings` — Earnings schedule from Finnhub as a paginated, date-grouped almanac (`EarningsBoard`) with dawn/dusk session discs; rows link to `/stock/[ticker]`; mock fallback
+- `/institutions` — Big-institution directory: a grid of hanko-seal cards (`InstitutionsGrid`) with each institution's SEC 13F portfolio value + quarter; mock fallback. `/institutions/[slug]` shows that institution's latest 13F holdings (`HoldingsBoard`: paginated, ticker-first rows, weight-bars, deep-links to `/stock/[ticker]` when the CUSIP resolved) plus a `HoldingSearch` box ("does this fund hold X?" — searches the entire 13F via the backend, falling back to filtering the loaded top rows when offline); mock fallback via `buildInstitutionDetailMock`
 - `/stock/[ticker]` — Stock detail page with candlestick chart, sentiment timeline, mention volume, fundamentals grid, institutional ownership (`InstitutionalOwnership`: Yahoo Finance donut + top-holder bars, mock fallback), a composite scorecard section (`ScorecardPillars`, 5 weighted pillars: val/grw/qlt/mom/snt), and social posts
 
 The scorecard is a section inside the stock detail page, not a separate route.
 
 ### Data Layer (`lib/`)
 
-- `api.ts` — Backend API client (uses `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`; every fetch degrades to `null`/mock on failure). `fetchTrending(source?, limit?)` → `GET /api/reddit/trending` (`apiRowToView()` merges real mentions with mock price/sentiment/sparkline). `fetchTickerHistory(ticker)` → `/history` (candles + fundamentals). `fetchTickerNews(ticker, name?)` → `/news`. `fetchMarketSeason()` → `/api/market/season`. `fetchThemes()` → `/api/market/themes`. `fetchEconomicEvents()` → `/api/market/events`. `fetchEarnings()` → `/api/market/earnings`. `fetchInstitutionalOwnership(ticker)` → `/api/stocks/{ticker}/institutional` (Yahoo Finance ownership; mock fallback via `buildInstitutionalMock`). Each has a paired `api*ToView()` mapper.
+- `api.ts` — Backend API client (uses `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`; every fetch degrades to `null`/mock on failure). `fetchTrending(source?, limit?)` → `GET /api/reddit/trending` (`apiRowToView()` merges real mentions with mock price/sentiment/sparkline). `fetchTickerHistory(ticker)` → `/history` (candles + fundamentals). `fetchTickerNews(ticker, name?)` → `/news`. `fetchMarketSeason()` → `/api/market/season`. `fetchThemes()` → `/api/market/themes`. `fetchEconomicEvents()` → `/api/market/events`. `fetchEarnings()` → `/api/market/earnings`. `fetchInstitutionalOwnership(ticker)` → `/api/stocks/{ticker}/institutional` (Yahoo Finance ownership; mock fallback via `buildInstitutionalMock`). `fetchInstitutions()` → `/api/institutions/` (13F big-holder list; mock fallback `INSTITUTIONS_MOCK`), `fetchInstitutionHoldings(slug)` → `/api/institutions/{slug}` (13F holdings; mock fallback `buildInstitutionDetailMock`), and `searchInstitutionHoldings(slug, q)` → `/api/institutions/{slug}/search` (whole-portfolio "do they hold X?"; `available:false` when offline so the caller filters loaded rows instead). Each has a paired `api*ToView()` mapper.
 - `tickers.ts` — Central data source. Contains curated profiles for 8 tickers (NVDA, SMCI, PLTR, GME, TSLA, COIN, AMD, SOFI) with hardcoded fundamentals, pillars, and posts. Any other ticker gets procedurally generated data via `getTickerProfile()`.
 - `series.ts` — Generates candlestick price series, sentiment paths, volume bars, and sparkline SVG paths from a ticker profile. Also contains the "Market Season Branch" blossom/bud logic and `buildInstitutionalMock` (deterministic institutional-ownership fallback).
 - `dashboard.ts` — Assembles mock trending table rows (used as fallback when backend is unreachable) and theme data for the home page. Exports `MARKET_STATE` (mock fear/greed, VIX, etc.).
@@ -48,7 +49,7 @@ The dashboard page (`app/page.tsx`) is an async server component that fetches tr
 
 ### Components
 
-Most components are server components receiving pre-computed data as props. Five components use `"use client"`: `Header` (for `usePathname` active nav + search), `TrendingTable` (for filter tabs and pagination), `ScorecardPillars` (for expand/collapse state), and `EarningsBoard` / `EventsBoard` (for `/earnings` and `/events` pagination + date grouping). Key visual components:
+Most components are server components receiving pre-computed data as props. Seven components use `"use client"`: `Header` (for `usePathname` active nav + search), `TrendingTable` (for filter tabs and pagination), `ScorecardPillars` (for expand/collapse state), `EarningsBoard` / `EventsBoard` (for `/earnings` and `/events` pagination + date grouping), `HoldingsBoard` (for `/institutions/[slug]` holdings pagination), and `HoldingSearch` (for the "do they hold X?" query on `/institutions/[slug]`). Key visual components:
 
 - `MarketSeasonBranch` — SVG cherry blossom branch where bloom count reflects the fear/greed index
 - `CandlestickChart` — SVG candlestick chart with pre-computed geometry
@@ -59,6 +60,9 @@ Most components are server components receiving pre-computed data as props. Five
 - `EarningsBoard` — Paginated, date-grouped earnings "almanac" for the `/earnings` page; vermilion/ink session discs (before open / after close), a staggered `kabuka-rise` reveal, and rows linking to the stock detail page
 - `WhyThisSentiment` — Stock-detail panel showing real per-ticker headlines from `/news`
 - `InstitutionalOwnership` — Stock-detail section: an SVG ownership donut (institutional %) + horizontal top-holder bars, from Yahoo Finance (`/institutional`) with deterministic mock fallback
+- `InstitutionsGrid` — `/institutions` directory: a responsive grid of hanko-seal cards (stamped kanji, name, category, 13F portfolio value + quarter) linking to each institution's holdings page
+- `HoldingsBoard` — `/institutions/[slug]` holdings almanac: paginated 13F positions, ticker-first (symbol leads, issuer as subtitle; ETFs/unresolved CUSIPs fall back to issuer), green weight-bars (share of portfolio); rows deep-link to `/stock/[ticker]` when the CUSIP resolved to a ticker
+- `HoldingSearch` — `/institutions/[slug]` "does this fund hold X?" box: queries the backend across the institution's entire 13F (`searchInstitutionHoldings`), renders a hit (ticker/value/weight/rank, linking to the stock) or a definitive miss; falls back to filtering the loaded top holdings when SEC is offline
 - `TrendingSkeleton` — Loading skeleton with ink-fade animation
 
 ### Design System

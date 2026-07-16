@@ -2,6 +2,9 @@ import { colors } from "./colors";
 import type {
   EarningsEventView,
   EconomicEventView,
+  InstitutionDetailView,
+  InstitutionHoldingView,
+  InstitutionView,
   MarketSeasonView,
   Theme,
   TrendingRowView,
@@ -550,5 +553,188 @@ export async function fetchInstitutionalOwnership(
     return apiInstitutionalToView(data);
   } catch {
     return null;
+  }
+}
+
+// ---- Institutions (SEC 13F holdings) ----
+
+export interface InstitutionAPI {
+  slug: string;
+  name: string;
+  cik: string;
+  category: string;
+  kanji: string;
+  portfolio_value: number | null;
+  period: string | null;
+}
+
+export interface InstitutionHoldingAPI {
+  issuer: string;
+  cusip: string;
+  ticker: string | null;
+  value: number;
+  shares: number;
+  pct: number;
+  rank: number | null;
+}
+
+export interface InstitutionDetailAPI {
+  available: boolean;
+  slug: string;
+  name: string;
+  cik: string;
+  category: string;
+  kanji: string;
+  period: string | null;
+  portfolio_value: number | null;
+  positions: number | null;
+  holdings: InstitutionHoldingAPI[];
+}
+
+/** SEC 13F period "MM-DD-YYYY" (a quarter-end) → "Q1 2026", or "" if unparsable. */
+function fmtQuarter(period: string | null): string {
+  if (!period) return "";
+  const parts = period.split("-");
+  if (parts.length !== 3) return "";
+  const month = Number(parts[0]);
+  const year = parts[2];
+  if (!month || !year) return "";
+  return `Q${Math.ceil(month / 3)} ${year}`;
+}
+
+/** Compact share count ("227.9M", "1.2B"), or "—" when absent. */
+function fmtShares(n: number | null): string {
+  if (n == null || n === 0) return "—";
+  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(0)}K`;
+  return String(Math.round(n));
+}
+
+/** Map a /api/institutions list item into the list view shape. */
+export function apiInstitutionToView(i: InstitutionAPI): InstitutionView {
+  return {
+    slug: i.slug,
+    name: i.name,
+    category: i.category,
+    kanji: i.kanji,
+    portfolioValue: i.portfolio_value != null ? fmtMarketCap(i.portfolio_value) : "—",
+    period: fmtQuarter(i.period),
+  };
+}
+
+/** Map a holding row into the board view shape. */
+export function apiHoldingToView(h: InstitutionHoldingAPI): InstitutionHoldingView {
+  const pct = h.pct ?? 0;
+  return {
+    issuer: h.issuer,
+    ticker: h.ticker,
+    value: fmtMarketCap(h.value),
+    shares: fmtShares(h.shares),
+    pct,
+    pctLabel: `${pct.toFixed(1)}%`,
+    rank: h.rank ?? undefined,
+  };
+}
+
+/**
+ * Map the /api/institutions/{slug} payload into the detail view shape. Returns
+ * null when the backend reports it is unavailable (unknown slug or SEC
+ * unreachable) or has no holdings, so callers can fall back to the mock.
+ */
+export function apiInstitutionDetailToView(
+  d: InstitutionDetailAPI,
+): InstitutionDetailView | null {
+  if (!d.available || !Array.isArray(d.holdings) || d.holdings.length === 0) {
+    return null;
+  }
+  return {
+    slug: d.slug,
+    name: d.name,
+    category: d.category,
+    kanji: d.kanji,
+    period: fmtQuarter(d.period),
+    portfolioValue: d.portfolio_value != null ? fmtMarketCap(d.portfolio_value) : "—",
+    positions: d.positions ?? d.holdings.length,
+    holdings: d.holdings.map(apiHoldingToView),
+  };
+}
+
+/**
+ * Fetch the curated big-institution list (with a portfolio summary each) from
+ * the backend. Returns null on any error or an empty list, so callers can fall
+ * back to the mock INSTITUTIONS_MOCK.
+ */
+export async function fetchInstitutions(): Promise<InstitutionView[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/institutions/`);
+    if (!res.ok) return null;
+    const data: InstitutionAPI[] = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return null;
+    return data.map(apiInstitutionToView);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch one institution's latest 13F holdings from the backend. Returns null on
+ * any error or when unavailable, so callers can fall back to
+ * buildInstitutionDetailMock.
+ */
+export async function fetchInstitutionHoldings(
+  slug: string,
+): Promise<InstitutionDetailView | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/institutions/${encodeURIComponent(slug)}`,
+    );
+    if (!res.ok) return null;
+    const data: InstitutionDetailAPI = await res.json();
+    return apiInstitutionDetailToView(data);
+  } catch {
+    return null;
+  }
+}
+
+export interface InstitutionSearchAPI {
+  available: boolean;
+  slug: string;
+  name: string;
+  query: string;
+  positions: number | null;
+  matches: InstitutionHoldingAPI[];
+}
+
+export interface InstitutionSearchResult {
+  available: boolean; // false when SEC is unreachable (search couldn't run)
+  positions: number | null; // total positions searched
+  matches: InstitutionHoldingView[];
+}
+
+/**
+ * Ask whether an institution holds a given stock, searching its *entire* latest
+ * 13F (not just the top positions on the page). Returns `available: false` when
+ * the backend/SEC is unreachable, so the caller can fall back to filtering the
+ * already-loaded top holdings. An empty `matches` with `available: true` is a
+ * definitive "they don't hold it".
+ */
+export async function searchInstitutionHoldings(
+  slug: string,
+  query: string,
+): Promise<InstitutionSearchResult> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/institutions/${encodeURIComponent(slug)}/search?q=${encodeURIComponent(query)}`,
+    );
+    if (!res.ok) return { available: false, positions: null, matches: [] };
+    const data: InstitutionSearchAPI = await res.json();
+    return {
+      available: !!data.available,
+      positions: data.positions ?? null,
+      matches: Array.isArray(data.matches) ? data.matches.map(apiHoldingToView) : [],
+    };
+  } catch {
+    return { available: false, positions: null, matches: [] };
   }
 }

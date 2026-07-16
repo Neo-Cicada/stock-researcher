@@ -13,6 +13,7 @@ FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news"
 FINNHUB_ECONOMIC_CALENDAR_URL = "https://finnhub.io/api/v1/calendar/economic"
 FINNHUB_EARNINGS_CALENDAR_URL = "https://finnhub.io/api/v1/calendar/earnings"
 FINNHUB_SEARCH_URL = "https://finnhub.io/api/v1/search"
+FINNHUB_PROFILE_URL = "https://finnhub.io/api/v1/stock/profile2"
 
 # In-process TTL cache (mirrors price_fetcher._detail_cache): Finnhub's free tier
 # is 60 req/min, and general market news barely changes minute to minute.
@@ -24,6 +25,9 @@ _company_news_cache: dict[str, dict] = {}
 
 # Per-query symbol-search cache: {query: {"data": [...], "ts": float}}.
 _search_cache: dict[str, dict] = {}
+
+# Per-ticker company-profile-name cache: {ticker: {"data": str, "ts": float}}.
+_profile_cache: dict[str, dict] = {}
 
 # Calendars change at most a few times a day, so a longer TTL is fine.
 _CALENDAR_TTL_SECONDS = 3600  # 1 hour
@@ -413,6 +417,43 @@ def _to_search_item(row: dict) -> dict | None:
         "description": (row.get("description") or "").strip(),
         "type": (row.get("type") or "").strip(),
     }
+
+
+async def get_company_name(ticker: str) -> str:
+    """Resolve a ticker to its company name via Finnhub ``profile2`` (cached).
+
+    Used to bridge a ticker the user typed (e.g. ``AAOI``) to the company name a
+    13F reports (``APPLIED OPTOELECTRONICS INC``) so institution-holdings search
+    can find small-caps whose CUSIP isn't in our ticker map. Returns ``""`` when
+    the key is missing, the symbol is unknown, or Finnhub is unreachable, so the
+    caller just proceeds without a name hint.
+    """
+    key = (ticker or "").strip().upper()
+    if not key:
+        return ""
+
+    now = time.time()
+    entry = _profile_cache.get(key)
+    if entry is not None and now - entry["ts"] < _CACHE_TTL_SECONDS:
+        return entry["data"]
+
+    api_key = settings.FINNHUB_API_KEY
+    if not api_key:
+        return ""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                FINNHUB_PROFILE_URL, params={"symbol": key, "token": api_key}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception:
+        logger.exception("Finnhub profile fetch failed for %s", key)
+        return entry["data"] if entry is not None else ""
+
+    name = (data.get("name") or "").strip() if isinstance(data, dict) else ""
+    _profile_cache[key] = {"data": name, "ts": now}
+    return name
 
 
 async def search_symbols(query: str) -> list[dict]:

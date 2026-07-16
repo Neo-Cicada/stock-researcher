@@ -125,6 +125,16 @@ a:hover {
   background: #efe9db;
 }
 
+.kbk-inst-card {
+  transition:
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+.kbk-inst-card:hover {
+  border-color: rgba(33, 28, 21, 0.42) !important;
+  transform: translateY(-2px);
+}
+
 /* ── Responsive variables ── */
 :root {
   --kbk-page-pl: 96px;

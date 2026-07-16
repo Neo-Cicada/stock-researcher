@@ -34,6 +34,7 @@ const NAV_LINKS = [
   { href: "/", label: "DASHBOARD" },
   { href: "/events", label: "EVENTS" },
   { href: "/earnings", label: "EARNINGS" },
+  { href: "/institutions", label: "INSTITUTIONS" },
 ] as const;
 
 export default function Header() {

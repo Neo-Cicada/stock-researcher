@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, timedelta
 
 from app.services import finnhub_fetcher
 from app.services.finnhub_fetcher import (
@@ -167,6 +168,47 @@ def test_get_earnings_calendar_sorts_by_date(monkeypatch):
     assert [e["symbol"] for e in events] == ["NVDA", "TSLA"]
 
 
+def test_get_earnings_calendar_keeps_relevant_then_orders_by_date(monkeypatch):
+    """Over the cap, high-revenue/estimate names survive; a no-estimate microcap
+    on an earlier date is dropped, and the kept slice is returned by date."""
+    monkeypatch.setattr(finnhub_fetcher, "_earnings_cache", {"data": None, "ts": 0.0})
+    monkeypatch.setattr(finnhub_fetcher, "MAX_EARNINGS_EVENTS", 2)
+
+    async def _fake(*args, **kwargs):
+        return {
+            "earningsCalendar": [
+                {"symbol": "TINY", "date": "2026-07-16"},  # no estimates -> dropped
+                {"symbol": "BIG", "date": "2026-07-20", "revenueEstimate": 1.2e10},
+                {"symbol": "MID", "date": "2026-07-17", "epsEstimate": 0.5},
+            ]
+        }
+
+    monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _fake)
+    events = asyncio.run(get_earnings_calendar())
+    # TINY (earliest date but no coverage) is cut; kept pair ordered by date.
+    assert [e["symbol"] for e in events] == ["MID", "BIG"]
+
+
+def test_get_earnings_calendar_window_includes_yesterday(monkeypatch):
+    """The requested window starts a day before today so an after-close US-time
+    report stays visible once the server (UTC) clock rolls over."""
+    monkeypatch.setattr(finnhub_fetcher, "_earnings_cache", {"data": None, "ts": 0.0})
+    captured: dict = {}
+
+    async def _fake(url, params):
+        captured.update(params)
+        return {"earningsCalendar": []}
+
+    monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _fake)
+    asyncio.run(get_earnings_calendar())
+    today = date.today()
+    assert captured["from"] == (today - timedelta(days=1)).isoformat()
+    assert (
+        captured["to"]
+        == (today + timedelta(days=finnhub_fetcher.EARNINGS_LOOKAHEAD_DAYS)).isoformat()
+    )
+
+
 # ---- Symbol search ----
 
 
@@ -221,7 +263,9 @@ def test_search_symbols_ranks_prefix_matches_first(monkeypatch):
         async def get(self, *args, **kwargs):
             return _FakeResp()
 
-    monkeypatch.setattr(finnhub_fetcher.httpx, "AsyncClient", lambda **kw: _FakeClient())
+    monkeypatch.setattr(
+        finnhub_fetcher.httpx, "AsyncClient", lambda **kw: _FakeClient()
+    )
 
     results = asyncio.run(search_symbols("aa"))
     # AA-prefix match leads; duplicate symbol collapsed; non-matches follow.

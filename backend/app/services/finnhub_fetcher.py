@@ -41,6 +41,10 @@ COMPANY_NEWS_LOOKBACK_DAYS = 14
 # How far ahead to look on the calendars.
 ECONOMIC_LOOKAHEAD_DAYS = 14
 EARNINGS_LOOKAHEAD_DAYS = 7
+# Also include yesterday on the earnings calendar: a report scheduled "after
+# market close" in US time is still current/relevant to a US user when the
+# server clock (typically UTC) has already rolled to the next calendar day.
+EARNINGS_LOOKBACK_DAYS = 1
 MAX_ECONOMIC_EVENTS = 20
 MAX_EARNINGS_EVENTS = 30
 MAX_SEARCH_RESULTS = 8
@@ -364,21 +368,39 @@ def _to_earnings_event(row: dict) -> dict | None:
     }
 
 
+def _earnings_relevance(event: dict) -> tuple:
+    """Descending-sort key that surfaces well-covered, larger companies first.
+
+    A single week's earnings calendar carries hundreds of reports, the vast
+    majority tiny names with no analyst coverage. Events that carry an EPS or
+    revenue estimate rank above those that don't, then by revenue-estimate size
+    — a company-size proxy that needs no hardcoded ticker allowlist, so a
+    household name like NFLX clears the ``MAX_EARNINGS_EVENTS`` cut instead of
+    being truncated away by a naive date sort.
+    """
+    rev = event.get("revenue_estimate") or 0.0
+    eps = event.get("eps_estimate")
+    has_estimate = rev > 0 or eps is not None
+    return (1 if has_estimate else 0, rev, abs(eps) if eps is not None else 0.0)
+
+
 async def get_earnings_calendar() -> list[dict]:
     """Return upcoming earnings reports from Finnhub's earnings calendar.
 
-    Covers today through ``EARNINGS_LOOKAHEAD_DAYS`` ahead, ordered by date.
-    Cached in-process for ``_CALENDAR_TTL_SECONDS``; on an upstream failure the
-    last good list is served (empty list if we never fetched successfully) so
-    the frontend can fall back to mock.
+    Covers yesterday (see ``EARNINGS_LOOKBACK_DAYS``) through
+    ``EARNINGS_LOOKAHEAD_DAYS`` ahead. The window is ranked by relevance and
+    capped at ``MAX_EARNINGS_EVENTS``, then the kept slice is ordered by date
+    for the almanac. Cached in-process for ``_CALENDAR_TTL_SECONDS``; on an
+    upstream failure the last good list is served (empty list if we never
+    fetched successfully) so the frontend can fall back to mock.
     """
     now = time.time()
     cached = _earnings_cache["data"]
     if cached is not None and now - _earnings_cache["ts"] < _CALENDAR_TTL_SECONDS:
         return cached
 
-    frm = date.today()
-    to = frm + timedelta(days=EARNINGS_LOOKAHEAD_DAYS)
+    frm = date.today() - timedelta(days=EARNINGS_LOOKBACK_DAYS)
+    to = date.today() + timedelta(days=EARNINGS_LOOKAHEAD_DAYS)
     data = await _fetch_calendar(
         FINNHUB_EARNINGS_CALENDAR_URL,
         {"from": frm.isoformat(), "to": to.isoformat()},
@@ -393,8 +415,10 @@ async def get_earnings_calendar() -> list[dict]:
         if event is not None:
             events.append(event)
 
-    events.sort(key=lambda e: e["date"])
+    # Keep the most relevant slice, then present it chronologically.
+    events.sort(key=_earnings_relevance, reverse=True)
     events = events[:MAX_EARNINGS_EVENTS]
+    events.sort(key=lambda e: e["date"])
 
     _earnings_cache["data"] = events
     _earnings_cache["ts"] = now

@@ -79,6 +79,38 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
   };
 }
 
+// ---- Symbol search (Finnhub /search) — powers the header autocomplete ----
+
+export interface SymbolSearchAPI {
+  symbol: string;
+  description: string;
+  type: string;
+}
+
+/**
+ * Search listed stock symbols by ticker or company name via the backend
+ * (Finnhub). Returns an empty array on any error or when the backend returns
+ * nothing, so the header can fall back to its local known-ticker list.
+ */
+export async function fetchSymbolSearch(
+  query: string,
+  signal?: AbortSignal,
+): Promise<SymbolSearchAPI[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/stocks/search?q=${encodeURIComponent(q)}`,
+      { signal },
+    );
+    if (!res.ok) return [];
+    const data: SymbolSearchAPI[] = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
 // ---- Single-ticker detail (real OHLC + fundamentals from yfinance) ----
 
 export interface TickerCandleAPI {

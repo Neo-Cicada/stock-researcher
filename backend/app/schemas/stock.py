@@ -51,3 +51,9 @@ class TickerNewsItem(BaseModel):
     source: str = ""
     url: str
     published_at: int | None = None
+
+
+class SymbolSearchItem(BaseModel):
+    symbol: str
+    description: str = ""
+    type: str = ""

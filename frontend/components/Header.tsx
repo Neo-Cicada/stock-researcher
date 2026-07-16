@@ -4,6 +4,14 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { KNOWN_TICKERS } from "@/lib/known-tickers";
+import { fetchSymbolSearch } from "@/lib/api";
+
+interface Suggestion {
+  symbol: string;
+  name: string;
+}
+
+const MAX_SUGGESTIONS = 6;
 
 const dotStyle: React.CSSProperties = {
   width: 7,
@@ -34,6 +42,7 @@ export default function Header() {
   const [query, setQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const formatDateTime = useCallback(() => {
@@ -56,8 +65,7 @@ export default function Header() {
     const m = et.getMinutes();
     const day = et.getDay();
     const mins = h * 60 + m;
-    const isOpen =
-      day >= 1 && day <= 5 && mins >= 570 && mins < 960; // 9:30=570, 16:00=960
+    const isOpen = day >= 1 && day <= 5 && mins >= 570 && mins < 960; // 9:30=570, 16:00=960
     return { date, time, isOpen };
   }, []);
 
@@ -68,10 +76,42 @@ export default function Header() {
     return () => clearInterval(id);
   }, [formatDateTime]);
 
-  const suggestions =
-    query.length > 0
-      ? KNOWN_TICKERS.filter((t) => t.startsWith(query)).slice(0, 6)
-      : [];
+  // Debounced symbol search against the backend (any listed ticker), falling
+  // back to the local known-ticker list when the backend returns nothing.
+  useEffect(() => {
+    const q = query.trim();
+    const controller = new AbortController();
+    const id = setTimeout(
+      async () => {
+        if (!q) {
+          setSuggestions([]);
+          return;
+        }
+        const remote = await fetchSymbolSearch(q, controller.signal);
+        if (controller.signal.aborted) return;
+        const localFallback: Suggestion[] = KNOWN_TICKERS.filter((t) =>
+          t.startsWith(q.toUpperCase())
+        )
+          .slice(0, MAX_SUGGESTIONS)
+          .map((symbol) => ({ symbol, name: "" }));
+        setHighlightIdx(-1);
+        setSuggestions(
+          remote.length > 0
+            ? remote
+                .slice(0, MAX_SUGGESTIONS)
+                .map((r) => ({ symbol: r.symbol, name: r.description }))
+            : localFallback
+        );
+      },
+      q ? 180 : 0
+    );
+
+    return () => {
+      clearTimeout(id);
+      controller.abort();
+    };
+  }, [query]);
+
   const showDropdown = searchFocused && suggestions.length > 0;
 
   const navigate = useCallback(
@@ -80,13 +120,13 @@ export default function Header() {
       setQuery("");
       setHighlightIdx(-1);
     },
-    [router],
+    [router]
   );
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (highlightIdx >= 0 && highlightIdx < suggestions.length) {
-      navigate(suggestions[highlightIdx]);
+      navigate(suggestions[highlightIdx].symbol);
       return;
     }
     const cleaned = query.trim().replace(/[^a-zA-Z.]/g, "");
@@ -109,7 +149,11 @@ export default function Header() {
 
   return (
     <header className="kbk-header">
-      <Link href="/" className="kbk-header-brand" style={{ textDecoration: "none", color: "inherit" }}>
+      <Link
+        href="/"
+        className="kbk-header-brand"
+        style={{ textDecoration: "none", color: "inherit" }}
+      >
         <span
           style={{
             fontFamily: "var(--font-mincho)",
@@ -131,7 +175,7 @@ export default function Header() {
           KABUKA
         </span>
       </Link>
-      <span className="kbk-header-tagline">RICE-PAPER MARKET RESEARCH</span>
+      {/* <span className="kbk-header-tagline">RICE-PAPER MARKET RESEARCH</span> */}
       <nav className="kbk-header-nav">
         {NAV_LINKS.map(({ href, label }) => (
           <Link key={href} href={href} style={linkStyle}>
@@ -156,11 +200,14 @@ export default function Header() {
               setSearchFocused(true);
             }}
             onBlur={() => {
-              blurTimeout.current = setTimeout(() => setSearchFocused(false), 150);
+              blurTimeout.current = setTimeout(
+                () => setSearchFocused(false),
+                150
+              );
             }}
             onKeyDown={handleKeyDown}
             placeholder="SEARCH"
-            maxLength={5}
+            maxLength={32}
             autoComplete="off"
             style={{
               fontFamily: "var(--font-mono)",
@@ -181,8 +228,8 @@ export default function Header() {
               style={{
                 position: "absolute",
                 top: "100%",
-                left: 0,
                 right: 0,
+                minWidth: 240,
                 margin: 0,
                 padding: 0,
                 listStyle: "none",
@@ -190,16 +237,19 @@ export default function Header() {
                 border: "1px solid rgba(33,28,21,0.25)",
                 borderTop: "none",
                 zIndex: 100,
-                maxHeight: 200,
+                maxHeight: 240,
                 overflowY: "auto",
               }}
             >
-              {suggestions.map((t, i) => (
+              {suggestions.map((s, i) => (
                 <li
-                  key={t}
-                  onMouseDown={() => navigate(t)}
+                  key={s.symbol}
+                  onMouseDown={() => navigate(s.symbol)}
                   onMouseEnter={() => setHighlightIdx(i)}
                   style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 8,
                     fontFamily: "var(--font-mono)",
                     fontSize: 12,
                     letterSpacing: "0.12em",
@@ -212,14 +262,30 @@ export default function Header() {
                     color: "#211C15",
                   }}
                 >
-                  {t}
+                  <span>{s.symbol}</span>
+                  {s.name && (
+                    <span
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontSize: 10,
+                        letterSpacing: "0.02em",
+                        color: "rgba(33,28,21,0.55)",
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {s.name}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </form>
         <span className="kbk-header-date">
-          {dateTime.date} · {dateTime.time} · {dateTime.isOpen ? "開場中 open" : "閉場 closed"}
+          {dateTime.date} · {dateTime.time} ·{" "}
+          {dateTime.isOpen ? "開場中 open" : "閉場 closed"}
         </span>
       </nav>
     </header>

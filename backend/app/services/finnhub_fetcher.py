@@ -12,6 +12,7 @@ FINNHUB_NEWS_URL = "https://finnhub.io/api/v1/news"
 FINNHUB_COMPANY_NEWS_URL = "https://finnhub.io/api/v1/company-news"
 FINNHUB_ECONOMIC_CALENDAR_URL = "https://finnhub.io/api/v1/calendar/economic"
 FINNHUB_EARNINGS_CALENDAR_URL = "https://finnhub.io/api/v1/calendar/earnings"
+FINNHUB_SEARCH_URL = "https://finnhub.io/api/v1/search"
 
 # In-process TTL cache (mirrors price_fetcher._detail_cache): Finnhub's free tier
 # is 60 req/min, and general market news barely changes minute to minute.
@@ -20,6 +21,9 @@ _themes_cache: dict = {"data": None, "ts": 0.0}
 
 # Per-ticker company-news cache: {ticker: {"data": [...], "ts": float}}.
 _company_news_cache: dict[str, dict] = {}
+
+# Per-query symbol-search cache: {query: {"data": [...], "ts": float}}.
+_search_cache: dict[str, dict] = {}
 
 # Calendars change at most a few times a day, so a longer TTL is fine.
 _CALENDAR_TTL_SECONDS = 3600  # 1 hour
@@ -35,6 +39,7 @@ ECONOMIC_LOOKAHEAD_DAYS = 14
 EARNINGS_LOOKAHEAD_DAYS = 7
 MAX_ECONOMIC_EVENTS = 20
 MAX_EARNINGS_EVENTS = 30
+MAX_SEARCH_RESULTS = 8
 
 
 async def _fetch_general_news() -> list[dict] | None:
@@ -390,3 +395,84 @@ async def get_earnings_calendar() -> list[dict]:
     _earnings_cache["data"] = events
     _earnings_cache["ts"] = now
     return events
+
+
+def _to_search_item(row: dict) -> dict | None:
+    """Map a Finnhub symbol-search row into a compact result, or ``None``.
+
+    Keeps only plain, US-listed common-stock symbols (no dots/colons, so no
+    exchange-suffixed or non-US listings) — the search box routes to
+    ``/stock/{ticker}`` which is yfinance-backed, so a clean symbol is what we
+    want.
+    """
+    symbol = (row.get("symbol") or "").strip().upper()
+    if not symbol or not symbol.isalpha():
+        return None
+    return {
+        "symbol": symbol,
+        "description": (row.get("description") or "").strip(),
+        "type": (row.get("type") or "").strip(),
+    }
+
+
+async def search_symbols(query: str) -> list[dict]:
+    """Return matching stock symbols for a search query, live from Finnhub.
+
+    Backs the header search autocomplete so it can suggest any listed symbol,
+    not just a hardcoded shortlist. Results are cleaned to plain US-listed
+    common-stock symbols and ranked so a symbol-prefix match surfaces first.
+    Cached per-query in-process for ``_CACHE_TTL_SECONDS``; returns an empty
+    list (not an error) when the key is missing or Finnhub is unreachable, so
+    the frontend can fall back to its local ticker list.
+    """
+    q = query.strip().upper()
+    if not q:
+        return []
+
+    now = time.time()
+    entry = _search_cache.get(q)
+    if entry is not None and now - entry["ts"] < _CACHE_TTL_SECONDS:
+        return entry["data"]
+
+    api_key = settings.FINNHUB_API_KEY
+    if not api_key:
+        logger.warning("FINNHUB_API_KEY not set; skipping Finnhub symbol search")
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                FINNHUB_SEARCH_URL,
+                params={"q": q, "exchange": "US", "token": api_key},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception:
+        logger.exception("Finnhub symbol search failed for %s", q)
+        return entry["data"] if entry is not None else []
+
+    rows = data.get("result") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return entry["data"] if entry is not None else []
+
+    items: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
+        item = _to_search_item(row)
+        if item is None or item["symbol"] in seen:
+            continue
+        seen.add(item["symbol"])
+        items.append(item)
+
+    # Symbol-prefix matches first (what the user is typing), then by symbol
+    # length so the tightest match leads, then alphabetically. Sort is stable.
+    items.sort(
+        key=lambda it: (
+            not it["symbol"].startswith(q),
+            len(it["symbol"]),
+            it["symbol"],
+        )
+    )
+    items = items[:MAX_SEARCH_RESULTS]
+
+    _search_cache[q] = {"data": items, "ts": now}
+    return items

@@ -4,10 +4,12 @@ from app.services import finnhub_fetcher
 from app.services.finnhub_fetcher import (
     _to_earnings_event,
     _to_economic_event,
+    _to_search_item,
     _to_theme,
     get_earnings_calendar,
     get_economic_events,
     get_todays_themes,
+    search_symbols,
 )
 
 
@@ -163,3 +165,64 @@ def test_get_earnings_calendar_sorts_by_date(monkeypatch):
     monkeypatch.setattr(finnhub_fetcher, "_fetch_calendar", _fake)
     events = asyncio.run(get_earnings_calendar())
     assert [e["symbol"] for e in events] == ["NVDA", "TSLA"]
+
+
+# ---- Symbol search ----
+
+
+def test_to_search_item_maps_and_uppercases_symbol():
+    item = _to_search_item(
+        {"symbol": "aapl", "description": "APPLE INC", "type": "Common Stock"}
+    )
+    assert item["symbol"] == "AAPL"
+    assert item["description"] == "APPLE INC"
+
+
+def test_to_search_item_drops_non_plain_symbols():
+    # Dotted / exchange-suffixed / non-alpha symbols are filtered out.
+    assert _to_search_item({"symbol": "RY.TO", "description": "Royal Bank"}) is None
+    assert _to_search_item({"symbol": "", "description": "Blank"}) is None
+
+
+def _reset_search_cache(monkeypatch):
+    monkeypatch.setattr(finnhub_fetcher, "_search_cache", {})
+
+
+def test_search_symbols_empty_query_returns_empty(monkeypatch):
+    _reset_search_cache(monkeypatch)
+    assert asyncio.run(search_symbols("   ")) == []
+
+
+def test_search_symbols_ranks_prefix_matches_first(monkeypatch):
+    _reset_search_cache(monkeypatch)
+    monkeypatch.setattr(finnhub_fetcher.settings, "FINNHUB_API_KEY", "test-key")
+
+    class _FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "result": [
+                    {"symbol": "GOOGL", "description": "ALPHABET INC", "type": "CS"},
+                    {"symbol": "AL", "description": "AIR LEASE", "type": "CS"},
+                    {"symbol": "AAPL", "description": "APPLE INC", "type": "CS"},
+                    {"symbol": "AAPL", "description": "APPLE INC (dup)", "type": "CS"},
+                ]
+            }
+
+    class _FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, *args, **kwargs):
+            return _FakeResp()
+
+    monkeypatch.setattr(finnhub_fetcher.httpx, "AsyncClient", lambda **kw: _FakeClient())
+
+    results = asyncio.run(search_symbols("aa"))
+    # AA-prefix match leads; duplicate symbol collapsed; non-matches follow.
+    assert [r["symbol"] for r in results] == ["AAPL", "AL", "GOOGL"]

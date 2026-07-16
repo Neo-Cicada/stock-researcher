@@ -33,7 +33,7 @@ uv run pytest tests/test_price_fetcher.py::test_name  # Run a single test
 
 PostgreSQL must be running locally (e.g. `brew services start postgresql@16`). Verify with `pg_isready`. `docker-compose.yml` (+ `backend/Dockerfile`) exists for containerized runs.
 
-Backend env vars are configured in `backend/.env` (see `.env.example`). Vars: `DATABASE_URL` (default: `postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka`), `CORS_ORIGINS` (JSON array, default: `["http://localhost:3000"]`), `DEBUG` (default: `false`), `FINNHUB_API_KEY` (default: empty — themes/news endpoints return empty and the frontend falls back to mock when unset), `SEC_USER_AGENT` (descriptive User-Agent with contact info SEC EDGAR requires for the `/api/institutions` 13F fetches; a generic default works but set your own name/email in `.env`).
+Backend env vars are configured in `backend/.env` (see `.env.example`). Vars: `DATABASE_URL` (**required** — no source-code default so the credentialed connection string lives only in `.env`; example format `postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka`), `CORS_ORIGINS` (JSON array, default: `["http://localhost:3000"]`), `DEBUG` (default: `false`), `FINNHUB_API_KEY` (default: empty — themes/news endpoints return empty and the frontend falls back to mock when unset), `SEC_USER_AGENT` (descriptive User-Agent with contact info SEC EDGAR requires for the `/api/institutions` 13F fetches; a generic default works but set your own name/email in `.env`).
 
 Frontend env var: `NEXT_PUBLIC_API_URL` (default: `http://localhost:8000`) — the backend base URL.
 

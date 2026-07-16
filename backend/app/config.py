@@ -4,7 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka"
+    # Required — no committed default so the connection string (with its
+    # credentials) lives only in .env, never in source. See .env.example for the
+    # expected format.
+    DATABASE_URL: str
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
     DEBUG: bool = False
     FINNHUB_API_KEY: str = ""

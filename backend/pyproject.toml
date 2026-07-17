@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.7",
     "httpx>=0.28",
     "yfinance>=1.5.1",
+    "slowapi>=0.1.10",
 ]
 
 [dependency-groups]

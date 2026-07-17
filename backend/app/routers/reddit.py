@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.price import StockPrice
 from app.models.reddit import TrendingSnapshot
@@ -13,6 +14,13 @@ from app.schemas.reddit import (
 from app.services.apewisdom_fetcher import fetch_all_filters
 
 router = APIRouter(prefix="/api/reddit", tags=["reddit"])
+
+
+def require_admin(x_admin_token: str | None = Header(default=None)) -> None:
+    """Guard for the manual fetch trigger. Disabled unless ADMIN_TOKEN is set
+    (production default), and otherwise requires an exact-match header."""
+    if not settings.ADMIN_TOKEN or x_admin_token != settings.ADMIN_TOKEN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
 @router.get("/trending", response_model=list[TrendingTickerOut])
@@ -91,7 +99,11 @@ async def trending_tickers(
     return [TrendingTickerOut(**t) for t in sorted_tickers]
 
 
-@router.post("/fetch", response_model=RedditFetchResponse)
+@router.post(
+    "/fetch",
+    response_model=RedditFetchResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def trigger_fetch(db: AsyncSession = Depends(get_db)):
     counts = await fetch_all_filters(db)
     return RedditFetchResponse(

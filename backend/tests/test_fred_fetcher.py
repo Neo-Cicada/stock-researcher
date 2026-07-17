@@ -21,6 +21,12 @@ def test_match_release_returns_none_for_noise():
     assert _match_release("") is None
 
 
+def test_match_release_prefix_avoids_adjacent_releases():
+    # Substring matching would wrongly catch these; prefix matching must not.
+    assert _match_release("Debt to Gross Domestic Product Ratios") is None
+    assert _match_release("Research Consumer Price Index") is None
+
+
 def test_fred_events_filters_by_window_and_curation():
     today = date(2026, 8, 1)
     horizon = date(2026, 9, 15)

@@ -68,6 +68,23 @@ a:hover {
   }
 }
 
+/* Staggered "brush-stroke" reveal for list items (earnings almanac, etc.). */
+@keyframes kabuka-rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-rise] {
+  opacity: 0;
+  animation: kabuka-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 [data-petal] {
   animation-fill-mode: forwards;
 }
@@ -93,6 +110,11 @@ a:hover {
     animation: none !important;
     opacity: 0.25 !important;
   }
+  [data-rise] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 .kbk-row:hover {
@@ -101,6 +123,16 @@ a:hover {
 
 .kbk-pillar:hover {
   background: #efe9db;
+}
+
+.kbk-inst-card {
+  transition:
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+.kbk-inst-card:hover {
+  border-color: rgba(33, 28, 21, 0.42) !important;
+  transform: translateY(-2px);
 }
 
 /* ── Responsive variables ── */
@@ -206,6 +238,8 @@ a:hover {
 @media (max-width: 640px) {
   .kbk-header {
     gap: 12px;
+    align-items: center;
+    justify-content: space-between;
     padding: 16px var(--kbk-header-pr) 14px var(--kbk-header-pl);
   }
 
@@ -213,12 +247,26 @@ a:hover {
     display: none;
   }
 
+  /* Nav collapses into a hamburger-toggled drawer on phones. */
   .kbk-header-nav {
+    display: none;
+  }
+
+  .kbk-header-nav--open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     margin-left: 0;
     width: 100%;
-    gap: 16px;
+    gap: 0;
+    margin-top: 4px;
     border-top: 1px solid rgba(33, 28, 21, 0.18);
-    padding-top: 10px;
+  }
+
+  .kbk-header-nav--open .kbk-nav-link {
+    padding: 13px 2px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(33, 28, 21, 0.12);
   }
 }
 
@@ -503,6 +551,28 @@ a:hover {
   }
 }
 
+/* Hamburger toggle — phones only */
+.kbk-header-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: -8px -8px -8px 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #211c15;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 640px) {
+  .kbk-header-toggle {
+    display: flex;
+  }
+}
+
 /* Header search form — remove left border on mobile when items reflow */
 .kbk-header-search {
   border-left: 1px solid rgba(33, 28, 21, 0.35);
@@ -511,10 +581,20 @@ a:hover {
   align-items: center;
 }
 
+.kbk-search-input {
+  width: 110px;
+}
+
 @media (max-width: 640px) {
   .kbk-header-search {
     border-left: none;
     padding-left: 0;
+    padding-top: 12px;
+    width: 100%;
+  }
+
+  .kbk-search-input {
+    width: 100%;
   }
 }
 

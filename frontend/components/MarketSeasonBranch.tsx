@@ -9,7 +9,7 @@ interface MarketSeasonBranchProps {
   vixChange: string;
   putCall: string;
   breadth: string;
-  socialAggregate: string;
+  socialBullishPct: number | null;
 }
 
 export default function MarketSeasonBranch({
@@ -19,9 +19,19 @@ export default function MarketSeasonBranch({
   vixChange,
   putCall,
   breadth,
-  socialAggregate,
+  socialBullishPct,
 }: MarketSeasonBranchProps) {
   const petalColor = direction === "bullish" ? colors.bullish : colors.bearish;
+  // The crowd figure is its own reading — label and color it by its own value,
+  // not by the fear/greed direction, so "42% bull" never renders in green.
+  const socialLabel =
+    socialBullishPct == null ? "—" : `${socialBullishPct}% bull`;
+  const socialColor =
+    socialBullishPct == null
+      ? colors.ink
+      : socialBullishPct >= 50
+        ? colors.bullish
+        : colors.bearish;
   const { blossoms, buds } = branchBlossomsAndBuds(fearGreed, petalColor);
   const twigs = branchTwigs();
   const { label, note } = seasonLabel(fearGreed);
@@ -131,8 +141,8 @@ export default function MarketSeasonBranch({
           <span style={{ fontFamily: "var(--font-mono)" }}>{breadth}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", fontSize: 11.5 }}>
-          <span style={{ opacity: 0.65 }}>Social aggregate</span>
-          <span style={{ fontFamily: "var(--font-mono)", color: petalColor }}>{socialAggregate}</span>
+          <span style={{ opacity: 0.65 }}>Crowd bullish</span>
+          <span style={{ fontFamily: "var(--font-mono)", color: socialColor }}>{socialLabel}</span>
         </div>
       </aside>
     </section>

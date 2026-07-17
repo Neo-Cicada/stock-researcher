@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from app.config import settings
 from app.database import async_session, engine
 from app.models.reddit import TrendingSnapshot
-from app.routers import market, reddit, stocks
+from app.routers import institutions, market, reddit, stocks
 from app.services.apewisdom_fetcher import fetch_all_filters
 from app.services.fear_greed_fetcher import refresh_market_season
 from app.services.price_fetcher import fetch_prices_async
@@ -112,6 +112,7 @@ app.add_middleware(
 app.include_router(stocks.router)
 app.include_router(reddit.router)
 app.include_router(market.router)
+app.include_router(institutions.router)
 
 
 @app.get("/api/health")

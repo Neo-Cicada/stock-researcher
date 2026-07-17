@@ -31,6 +31,92 @@ _institutional_cache: dict[str, tuple[float, dict | None]] = {}
 MAX_HOLDERS = 8
 
 
+# US equity extended-hours sessions, in America/New_York minutes-of-day.
+_PRE_OPEN = 4 * 60  # 04:00
+_REGULAR_OPEN = 9 * 60 + 30  # 09:30
+_REGULAR_CLOSE = 16 * 60  # 16:00
+_POST_CLOSE = 20 * 60  # 20:00
+
+
+def _session_for_et(weekday: int, hour: int, minute: int) -> str:
+    """Classify a US/Eastern wall-clock time into a market session.
+
+    Pure (no I/O), so it is unit-testable. ``weekday`` is 0=Mon..6=Sun.
+    Returns "PRE", "REGULAR", "POST", or "CLOSED".
+    """
+    if weekday >= 5:  # Saturday / Sunday
+        return "CLOSED"
+    mins = hour * 60 + minute
+    if _PRE_OPEN <= mins < _REGULAR_OPEN:
+        return "PRE"
+    if _REGULAR_OPEN <= mins < _REGULAR_CLOSE:
+        return "REGULAR"
+    if _REGULAR_CLOSE <= mins < _POST_CLOSE:
+        return "POST"
+    return "CLOSED"
+
+
+def _session_for_timestamp(ts) -> str:
+    """Session for a pandas Timestamp (converted to US/Eastern)."""
+    try:
+        et = ts.tz_localize("UTC") if ts.tzinfo is None else ts
+        et = et.tz_convert("America/New_York")
+    except Exception:
+        return "CLOSED"
+    return _session_for_et(et.weekday(), et.hour, et.minute)
+
+
+def _enrich_extended(results: dict[str, dict]) -> None:
+    """Add pre-/post-market last trade to ``results`` in place.
+
+    Downloads intraday (5-minute) bars with ``prepost=True`` for the tickers we
+    already have a regular close for, then, when the latest bar falls in a PRE
+    or POST session, records the extended price + its change vs the regular
+    close. Best-effort: any failure leaves the row's extended fields unset.
+    """
+    tickers = list(results.keys())
+    for i in range(0, len(tickers), BATCH_SIZE):
+        batch = tickers[i : i + BATCH_SIZE]
+        try:
+            data = yf.download(
+                batch,
+                period="1d",
+                interval="5m",
+                prepost=True,
+                progress=False,
+                threads=True,
+            )
+            if data.empty:
+                continue
+            for ticker in batch:
+                try:
+                    close_col = (
+                        data["Close"] if len(batch) == 1 else data["Close"][ticker]
+                    )
+                    valid = close_col.dropna()
+                    if valid.empty:
+                        continue
+                    session = _session_for_timestamp(valid.index[-1])
+                    if session not in ("PRE", "POST"):
+                        continue
+                    ext_price = float(valid.iloc[-1])
+                    regular_close = results[ticker]["price"]
+                    pct = (
+                        (ext_price - regular_close) / regular_close * 100
+                        if regular_close
+                        else 0.0
+                    )
+                    results[ticker]["extended_price"] = round(ext_price, 2)
+                    results[ticker]["extended_change_pct"] = round(pct, 2)
+                    results[ticker]["market_state"] = session
+                except (KeyError, IndexError):
+                    continue
+        except Exception:
+            logger.exception(
+                "yfinance extended-hours download failed for %d tickers", len(batch)
+            )
+
+
 def _download_prices(tickers: list[str]) -> dict[str, dict]:
     """Synchronous yfinance download. Run in executor."""
     if not tickers:
@@ -99,6 +185,10 @@ def _download_prices(tickers: list[str]) -> dict[str, dict]:
                 "yfinance batch download failed for %d tickers", len(batch)
             )
 
+    # Best-effort pre-/post-market enrichment for the tickers we priced.
+    if results:
+        _enrich_extended(results)
+
     return results
 
 
@@ -125,6 +215,10 @@ async def fetch_prices_async(db: AsyncSession, tickers: list[str]) -> int:
             existing.price = data["price"]
             existing.previous_close = data["previous_close"]
             existing.day_change_pct = data["day_change_pct"]
+            # Overwrite (incl. clearing to None once we're back in regular hours).
+            existing.extended_price = data.get("extended_price")
+            existing.extended_change_pct = data.get("extended_change_pct")
+            existing.market_state = data.get("market_state")
             existing.updated_at = now
         else:
             db.add(
@@ -133,6 +227,9 @@ async def fetch_prices_async(db: AsyncSession, tickers: list[str]) -> int:
                     price=data["price"],
                     previous_close=data["previous_close"],
                     day_change_pct=data["day_change_pct"],
+                    extended_price=data.get("extended_price"),
+                    extended_change_pct=data.get("extended_change_pct"),
+                    market_state=data.get("market_state"),
                     updated_at=now,
                 )
             )
@@ -205,6 +302,25 @@ def _fetch_ticker_detail(ticker: str) -> dict | None:
             "earnings_growth": info.get("earningsGrowth"),
         }
 
+        # Extended-hours (pre-/post-market) quote from Yahoo's clean fields.
+        # We recompute the % vs the regular close so its scale is unambiguous.
+        # "PRE" = live pre-market. "POST"/"POSTPOST" = after-hours. "PREPRE"
+        # (overnight, pre-market not yet open) and "CLOSED" have no live pre
+        # price, so we surface the last after-hours print, as Yahoo does.
+        state = str(info.get("marketState") or "").upper()
+        if state == "PRE":
+            ext_price, ext_session = _num(info.get("preMarketPrice")), "PRE"
+        elif state in ("POST", "POSTPOST", "PREPRE", "CLOSED"):
+            ext_price, ext_session = _num(info.get("postMarketPrice")), "POST"
+        else:  # REGULAR (or unknown) — no extended quote to show.
+            ext_price, ext_session = None, None
+        if ext_price is not None and price:
+            extended_price = round(ext_price, 2)
+            extended_change_pct = round((ext_price - price) / price * 100, 2)
+            market_state = ext_session
+        else:
+            extended_price = extended_change_pct = market_state = None
+
         return {
             "ticker": ticker,
             "name": info.get("longName") or info.get("shortName"),
@@ -212,6 +328,9 @@ def _fetch_ticker_detail(ticker: str) -> dict | None:
             "price": price,
             "previous_close": previous_close,
             "day_change_pct": day_change_pct,
+            "extended_price": extended_price,
+            "extended_change_pct": extended_change_pct,
+            "market_state": market_state,
             "candles": candles,
             "fundamentals": fundamentals,
             # Transparent fundamental scorecard (None -> frontend uses mock).

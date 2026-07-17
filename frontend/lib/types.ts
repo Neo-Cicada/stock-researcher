@@ -3,6 +3,15 @@ export interface PillarInput {
   v: string;
 }
 
+/** A pre-/post-market quote formatted for display. */
+export interface ExtendedQuote {
+  session: "PRE" | "POST";
+  label: string; // "PRE-MKT" / "AFT-HRS"
+  price: string; // "184.10"
+  pct: string; // "+1.48%"
+  color: string;
+}
+
 export type PillarKey = "val" | "grw" | "qlt" | "mom" | "snt";
 
 export interface Pillar {

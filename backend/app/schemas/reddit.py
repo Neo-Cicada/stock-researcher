@@ -13,6 +13,9 @@ class TrendingTickerOut(BaseModel):
     price: float | None = None
     previous_close: float | None = None
     day_change_pct: float | None = None
+    extended_price: float | None = None
+    extended_change_pct: float | None = None
+    market_state: str | None = None
 
 
 class RedditFetchResult(BaseModel):

@@ -5,6 +5,8 @@ from app.services import price_fetcher
 from app.services.price_fetcher import (
     _fetch_ticker_detail,
     _institutional_from_frames,
+    _session_for_et,
+    _session_for_timestamp,
 )
 
 
@@ -73,3 +75,33 @@ def test_institutional_from_frames_maps_yfinance_shapes():
 
 def test_institutional_from_frames_none_when_empty():
     assert _institutional_from_frames("nvda", None, pd.DataFrame()) is None
+
+
+# ---- Extended-hours session classification ----------------------------------
+
+
+def test_session_for_et_boundaries():
+    # Monday (weekday 0)
+    assert _session_for_et(0, 4, 0) == "PRE"  # 04:00 pre-market open
+    assert _session_for_et(0, 9, 29) == "PRE"
+    assert _session_for_et(0, 9, 30) == "REGULAR"  # bell
+    assert _session_for_et(0, 15, 59) == "REGULAR"
+    assert _session_for_et(0, 16, 0) == "POST"  # close -> after hours
+    assert _session_for_et(0, 19, 59) == "POST"
+    assert _session_for_et(0, 20, 0) == "CLOSED"  # after-hours ends
+    assert _session_for_et(0, 3, 59) == "CLOSED"  # before pre-market
+    assert _session_for_et(0, 2, 0) == "CLOSED"
+
+
+def test_session_for_et_weekend_always_closed():
+    assert _session_for_et(5, 8, 0) == "CLOSED"  # Saturday pre-market hour
+    assert _session_for_et(6, 10, 0) == "CLOSED"  # Sunday regular hour
+
+
+def test_session_for_timestamp_converts_utc_to_eastern():
+    # 12:00 UTC on a Monday = 08:00 America/New_York (EDT) -> pre-market.
+    ts = pd.Timestamp("2026-07-13 12:00", tz="UTC")
+    assert _session_for_timestamp(ts) == "PRE"
+    # 20:00 UTC = 16:00 EDT -> post-market.
+    ts2 = pd.Timestamp("2026-07-13 20:00", tz="UTC")
+    assert _session_for_timestamp(ts2) == "POST"

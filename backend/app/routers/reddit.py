@@ -79,6 +79,9 @@ async def trending_tickers(
                 entry["price"] = sp.price
                 entry["previous_close"] = sp.previous_close
                 entry["day_change_pct"] = sp.day_change_pct
+                entry["extended_price"] = sp.extended_price
+                entry["extended_change_pct"] = sp.extended_change_pct
+                entry["market_state"] = sp.market_state
 
     # Sort by mention_count descending, limit
     sorted_tickers = sorted(

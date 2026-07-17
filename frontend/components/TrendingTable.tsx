@@ -285,8 +285,18 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
               <span style={{ fontSize: 11, opacity: 0.55, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {row.name}
               </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                {row.price}
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.1 }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                  {row.price}
+                </span>
+                {row.extended && (
+                  <span
+                    title={`${row.extended.label} ${row.extended.price} (${row.extended.pct})`}
+                    style={{ fontFamily: "var(--font-mono)", fontSize: 8.5, letterSpacing: "0.02em", color: row.extended.color, marginTop: 1 }}
+                  >
+                    {row.extended.session === "PRE" ? "PRE" : "AH"} {row.extended.pct}
+                  </span>
+                )}
               </span>
               <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, textAlign: "right", color: row.dayColor }}>
                 {row.day}

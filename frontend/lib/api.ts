@@ -10,6 +10,7 @@ import type {
   TrendingRowView,
 } from "./dashboard";
 import type {
+  ExtendedQuote,
   Fundamental,
   InstitutionalOwnershipView,
   NewsItem,
@@ -30,6 +31,9 @@ export interface TrendingTickerAPI {
   price: number | null;
   previous_close: number | null;
   day_change_pct: number | null;
+  extended_price: number | null;
+  extended_change_pct: number | null;
+  market_state: string | null;
 }
 
 export async function fetchTrending(
@@ -42,6 +46,27 @@ export async function fetchTrending(
   const res = await fetch(`${API_BASE}/api/reddit/trending?${params}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+/**
+ * Normalise a backend extended-hours quote into a display object, or null when
+ * there's no pre-/post-market trade to show (regular hours or missing data).
+ */
+export function buildExtendedQuote(
+  price: number | null,
+  pct: number | null,
+  state: string | null,
+): ExtendedQuote | null {
+  if (price == null || pct == null) return null;
+  const s = (state ?? "").toUpperCase();
+  if (s !== "PRE" && s !== "POST") return null;
+  return {
+    session: s,
+    label: s === "PRE" ? "PRE-MKT" : "AFT-HRS",
+    price: price.toFixed(2),
+    pct: (pct >= 0 ? "+" : "−") + Math.abs(pct).toFixed(2) + "%",
+    color: pct >= 0 ? colors.bullish : colors.bearish,
+  };
 }
 
 export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
@@ -80,6 +105,11 @@ export function apiRowToView(t: TrendingTickerAPI): TrendingRowView {
     subreddits: t.sources,
     dayPct,
     mentionCount: t.mention_count,
+    extended: buildExtendedQuote(
+      t.extended_price,
+      t.extended_change_pct,
+      t.market_state,
+    ),
   };
 }
 
@@ -164,6 +194,9 @@ export interface TickerHistoryAPI {
   price: number | null;
   previous_close: number | null;
   day_change_pct: number | null;
+  extended_price: number | null;
+  extended_change_pct: number | null;
+  market_state: string | null;
   candles: TickerCandleAPI[];
   fundamentals: TickerFundamentalsAPI | null;
   scorecard: ScorecardAPI | null;

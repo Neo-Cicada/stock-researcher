@@ -1,4 +1,5 @@
 import { colors, directionColor } from "@/lib/colors";
+import type { ExtendedQuote } from "@/lib/types";
 import { BlossomFlower } from "./BlossomFlower";
 
 interface StockHeaderProps {
@@ -10,6 +11,7 @@ interface StockHeaderProps {
   dayChangePct: number;
   sentimentScore: number;
   insufficient: boolean;
+  extended?: ExtendedQuote | null;
 }
 
 export default function StockHeader({
@@ -21,6 +23,7 @@ export default function StockHeader({
   dayChangePct,
   sentimentScore,
   insufficient,
+  extended,
 }: StockHeaderProps) {
   const up = dayChangePct >= 0;
   const changeColor = up ? colors.bullish : colors.bearish;
@@ -43,6 +46,14 @@ export default function StockHeader({
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 13.5, color: changeColor }}>
           {(up ? "+" : "−") + Math.abs(dayChangeAbs).toFixed(2)} · {(up ? "+" : "−") + Math.abs(dayChangePct).toFixed(2)}%
         </div>
+        {extended && (
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, marginTop: 3, display: "flex", gap: 6, alignItems: "baseline" }}>
+            <span style={{ fontSize: 8.5, letterSpacing: "0.16em", opacity: 0.55 }}>{extended.label}</span>
+            <span style={{ color: extended.color }}>
+              {extended.price} · {extended.pct}
+            </span>
+          </div>
+        )}
       </div>
       <div className="kbk-stockhdr-sentiment">
         <div style={{ fontSize: 10, letterSpacing: "0.2em", opacity: 0.55, marginBottom: 4 }}>

@@ -2,6 +2,7 @@ import { getTickerProfile, TRENDING_TICKERS } from "./tickers";
 import { buildPriceSeries } from "./series";
 import { makeRng, hashSeed } from "./rng";
 import { colors } from "./colors";
+import type { ExtendedQuote } from "./types";
 
 const SUBREDDIT_LIST = ["wallstreetbets", "investing", "daytrading"] as const;
 
@@ -17,6 +18,8 @@ export interface TrendingRowView {
   // Numeric values for sorting (null when unavailable).
   dayPct: number | null;
   mentionCount: number;
+  // Pre-/post-market quote, or null (regular hours / mock rows / no data).
+  extended: ExtendedQuote | null;
 }
 
 export function getTrendingRows(): TrendingRowView[] {
@@ -43,6 +46,8 @@ export function getTrendingRows(): TrendingRowView[] {
       subreddits: [...subs],
       dayPct,
       mentionCount: profile.mentions,
+      // Mock rows have no live extended-hours quote.
+      extended: null,
     };
   });
 }

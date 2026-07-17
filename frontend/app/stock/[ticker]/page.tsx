@@ -7,6 +7,7 @@ import {
   apiScorecardToPillars,
   fetchTickerNews,
   fetchInstitutionalOwnership,
+  buildExtendedQuote,
 } from "@/lib/api";
 import { compositeScore } from "@/lib/composite";
 import ScorecardPillars from "@/components/ScorecardPillars";
@@ -59,6 +60,15 @@ export default async function StockDetailPage({ params }: { params: Params }) {
   // Prefer the real company name from the live /history payload; fall back to
   // the mock profile name when live data (or the name field) is unavailable.
   const displayName = history?.name || profile.name;
+  // Pre-/post-market quote — only present on live data during an extended
+  // session; null during regular hours or on the mock fallback.
+  const extended = history
+    ? buildExtendedQuote(
+        history.extended_price,
+        history.extended_change_pct,
+        history.market_state,
+      )
+    : null;
 
   // Real Five-Petal scorecard from live fundamentals when available: the
   // backend computes Value/Growth/Quality/Momentum, and the mock Sentiment
@@ -94,6 +104,7 @@ export default async function StockDetailPage({ params }: { params: Params }) {
         dayChangePct={dayChangePct}
         sentimentScore={profile.sentimentScore}
         insufficient={profile.insufficient}
+        extended={extended}
       />
 
       <section className="kbk-stock-grid">

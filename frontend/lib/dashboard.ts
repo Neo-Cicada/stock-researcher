@@ -123,6 +123,13 @@ export interface EarningsEventView {
   sessionLabel: string; // "after close" | "before open" | "during hours" | ""
   epsEstimate: string;
   revenueEstimate: string;
+  // Result fields — present once a company has reported (past/live earnings).
+  // The mock EARNINGS_SCHEDULE is a forward calendar, so these stay absent there.
+  reported?: boolean;
+  epsActual?: string; // formatted actual EPS, or "—"
+  revenueActual?: string; // formatted actual revenue, or "—"
+  epsBeatSign?: number; // sign(actual − estimate): 1 beat, -1 miss, 0 inline/unknown
+  revBeatSign?: number;
 }
 
 export const EARNINGS_SCHEDULE: EarningsEventView[] = [
@@ -149,7 +156,9 @@ export interface MarketSeasonView {
   vixChange: string;
   putCall: string;
   breadth: string;
-  socialAggregate: string;
+  // % of the ApeWisdom/Reddit crowd leaning bullish (0–100), or null when
+  // there isn't enough crowd data. Distinct from the fear/greed `fearGreed`.
+  socialBullishPct: number | null;
 }
 
 // Mock "current market state" — used as the fallback when the backend
@@ -162,7 +171,7 @@ export const MARKET_STATE: MarketSeasonView = {
   vixChange: "−0.8",
   putCall: "0.62",
   breadth: "71%",
-  socialAggregate: "62 bullish",
+  socialBullishPct: 62,
 };
 
 // ---- Institutions (SEC 13F holdings) ----

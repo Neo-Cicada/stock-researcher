@@ -52,7 +52,7 @@ export default async function DashboardPage() {
         vixChange={season.vixChange}
         putCall={season.putCall}
         breadth={season.breadth}
-        socialAggregate={season.socialAggregate}
+        socialBullishPct={season.socialBullishPct}
       />
 
       <svg

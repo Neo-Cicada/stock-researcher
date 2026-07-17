@@ -29,6 +29,45 @@ function discStyle(sessionKey: string): React.CSSProperties {
   return { ...base, background: "transparent", borderColor: "rgba(33,28,21,0.4)" };
 }
 
+// Beat / miss / in-line glyph + color for a result line, keyed by sign.
+function beatStyle(sign: number): { arrow: string; label: string; color: string } {
+  if (sign > 0) return { arrow: "▲", label: "beat", color: colors.bullish };
+  if (sign < 0) return { arrow: "▼", label: "miss", color: colors.bearish };
+  return { arrow: "◆", label: "in line", color: colors.inkSoft };
+}
+
+// One "EPS 6.31 vs 6.20 ▲ beat" line for a reported earnings row.
+function ResultLine({
+  metric,
+  actual,
+  estimate,
+  sign,
+}: {
+  metric: string;
+  actual: string;
+  estimate: string;
+  sign: number;
+}) {
+  const b = beatStyle(sign);
+  return (
+    <span
+      style={{
+        display: "block",
+        fontFamily: "var(--font-mono)",
+        fontSize: 12,
+        letterSpacing: "0.02em",
+        fontVariantNumeric: "tabular-nums",
+        marginTop: 3,
+      }}
+    >
+      <span style={{ opacity: 0.5, marginRight: 6 }}>{metric}</span>
+      <span style={{ color: b.color, fontWeight: 700 }}>{actual}</span>
+      <span style={{ opacity: 0.5 }}> vs {estimate}</span>
+      <span style={{ color: b.color, marginLeft: 6 }}>{b.arrow} {b.label}</span>
+    </span>
+  );
+}
+
 interface DateGroup {
   dateLabel: string;
   weekday: string;
@@ -118,44 +157,87 @@ export default function EarningsBoard({ earnings }: { earnings: EarningsEventVie
                   </span>
                 </div>
 
-                {group.items.map((e, ii) => (
-                  <Link
-                    key={`${e.symbol}-${ii}`}
-                    href={`/stock/${e.symbol.toLowerCase()}`}
-                    className="kbk-row"
-                    data-rise
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: GRID_COLS,
-                      gap: 12,
-                      alignItems: "center",
-                      padding: "11px 0",
-                      borderBottom: "1px solid rgba(33,28,21,0.12)",
-                      cursor: "pointer",
-                      animationDelay: `${(before + gi + ii + 1) * 45}ms`,
-                    }}
-                  >
-                    <span style={{ display: "flex", justifyContent: "center" }}>
-                      <span style={discStyle(e.sessionKey)} title={e.sessionLabel || undefined} />
-                    </span>
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, letterSpacing: "0.02em" }}>
-                        {e.symbol}
+                {group.items.map((e, ii) => {
+                  const delay = `${(before + gi + ii + 1) * 45}ms`;
+
+                  // Ticker cell (disc + symbol + session), shared by both layouts.
+                  const tickerCell = (
+                    <>
+                      <span style={{ display: "flex", justifyContent: "center" }}>
+                        <span style={discStyle(e.sessionKey)} title={e.sessionLabel || undefined} />
                       </span>
-                      {e.sessionLabel && (
-                        <span style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 9.5, letterSpacing: "0.1em", opacity: 0.5, marginTop: 2, textTransform: "uppercase" }}>
-                          {e.sessionLabel}
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, letterSpacing: "0.02em" }}>
+                          {e.symbol}
                         </span>
-                      )}
-                    </span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                      {e.epsEstimate}
-                    </span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, textAlign: "right", fontVariantNumeric: "tabular-nums", opacity: 0.85 }}>
-                      {e.revenueEstimate}
-                    </span>
-                  </Link>
-                ))}
+                        {e.sessionLabel && (
+                          <span style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: 9.5, letterSpacing: "0.1em", opacity: 0.5, marginTop: 2, textTransform: "uppercase" }}>
+                            {e.sessionLabel}
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  );
+
+                  // Reported (past/live) rows show the actual result inline
+                  // instead of linking to the stock. Show a metric line only
+                  // where an actual value came back.
+                  if (e.reported) {
+                    return (
+                      <div
+                        key={`${e.symbol}-${ii}`}
+                        data-rise
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "22px minmax(0,1fr)",
+                          gap: 12,
+                          alignItems: "start",
+                          padding: "11px 0",
+                          borderBottom: "1px solid rgba(33,28,21,0.12)",
+                          animationDelay: delay,
+                        }}
+                      >
+                        {tickerCell}
+                        <span style={{ gridColumn: "2", minWidth: 0 }}>
+                          {e.epsActual && e.epsActual !== "—" && (
+                            <ResultLine metric="EPS" actual={e.epsActual} estimate={e.epsEstimate} sign={e.epsBeatSign ?? 0} />
+                          )}
+                          {e.revenueActual && e.revenueActual !== "—" && (
+                            <ResultLine metric="REV" actual={e.revenueActual} estimate={e.revenueEstimate} sign={e.revBeatSign ?? 0} />
+                          )}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  // Upcoming rows: estimate columns, linking to the stock page.
+                  return (
+                    <Link
+                      key={`${e.symbol}-${ii}`}
+                      href={`/stock/${e.symbol.toLowerCase()}`}
+                      className="kbk-row"
+                      data-rise
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: GRID_COLS,
+                        gap: 12,
+                        alignItems: "center",
+                        padding: "11px 0",
+                        borderBottom: "1px solid rgba(33,28,21,0.12)",
+                        cursor: "pointer",
+                        animationDelay: delay,
+                      }}
+                    >
+                      {tickerCell}
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                        {e.epsEstimate}
+                      </span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, textAlign: "right", fontVariantNumeric: "tabular-nums", opacity: 0.85 }}>
+                        {e.revenueEstimate}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             );
           })}

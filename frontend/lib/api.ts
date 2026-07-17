@@ -359,10 +359,8 @@ export function apiMarketSeasonToView(m: MarketSeasonAPI): MarketSeasonView {
     vixChange: "",
     putCall: subScore(m.put_call),
     breadth: subScore(m.breadth),
-    socialAggregate:
-      m.social_bullish_pct != null
-        ? `${Math.round(m.social_bullish_pct)} bullish`
-        : "—",
+    socialBullishPct:
+      m.social_bullish_pct != null ? Math.round(m.social_bullish_pct) : null,
   };
 }
 
@@ -520,17 +518,46 @@ function fmtRevenue(n: number | null): string {
   return fmtMarketCap(n);
 }
 
+/**
+ * sign(actual − estimate): 1 beat, -1 miss, 0 in-line or not comparable.
+ *
+ * The sign is decided from the *displayed* strings, not the raw floats: a beat
+ * or miss that vanishes once both values round to the same shown figure (e.g.
+ * 0.7987 vs 0.7994, both "0.80") must read "in line", never a ▼ that
+ * contradicts the equal numbers on screen.
+ */
+function beatSign(
+  actual: number | null,
+  estimate: number | null,
+  actualStr: string,
+  estimateStr: string,
+): number {
+  if (actual == null || estimate == null) return 0;
+  if (actualStr === estimateStr) return 0;
+  return Math.sign(actual - estimate);
+}
+
 /** Map a /api/market/earnings item into the earnings board view shape. */
 export function apiEarningsToView(e: EarningsEventAPI): EarningsEventView {
   const sessionKey = (e.hour || "").toLowerCase();
+  const reported = e.eps_actual != null || e.revenue_actual != null;
+  const epsEstimate = e.eps_estimate != null ? e.eps_estimate.toFixed(2) : "—";
+  const epsActual = e.eps_actual != null ? e.eps_actual.toFixed(2) : "—";
+  const revenueEstimate = fmtRevenue(e.revenue_estimate);
+  const revenueActual = fmtRevenue(e.revenue_actual);
   return {
     symbol: e.symbol,
     dateLabel: fmtMonthDay(e.date),
     weekday: weekdayOf(e.date),
     sessionKey,
     sessionLabel: EARNINGS_HOUR_LABELS[sessionKey] ?? "",
-    epsEstimate: e.eps_estimate != null ? e.eps_estimate.toFixed(2) : "—",
-    revenueEstimate: fmtRevenue(e.revenue_estimate),
+    epsEstimate,
+    revenueEstimate,
+    reported,
+    epsActual,
+    revenueActual,
+    epsBeatSign: beatSign(e.eps_actual, e.eps_estimate, epsActual, epsEstimate),
+    revBeatSign: beatSign(e.revenue_actual, e.revenue_estimate, revenueActual, revenueEstimate),
   };
 }
 

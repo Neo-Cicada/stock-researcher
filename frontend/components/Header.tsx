@@ -44,6 +44,7 @@ export default function Header() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
   const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const formatDateTime = useCallback(() => {
@@ -120,6 +121,7 @@ export default function Header() {
       router.push(`/stock/${t.toLowerCase()}`);
       setQuery("");
       setHighlightIdx(-1);
+      setMenuOpen(false);
     },
     [router]
   );
@@ -177,9 +179,37 @@ export default function Header() {
         </span>
       </Link>
       {/* <span className="kbk-header-tagline">RICE-PAPER MARKET RESEARCH</span> */}
-      <nav className="kbk-header-nav">
+      <button
+        type="button"
+        className="kbk-header-toggle"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((o) => !o)}
+      >
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+          {menuOpen ? (
+            <g stroke="#211C15" strokeWidth="1.6" strokeLinecap="round">
+              <line x1="5" y1="5" x2="17" y2="17" />
+              <line x1="17" y1="5" x2="5" y2="17" />
+            </g>
+          ) : (
+            <g stroke="#211C15" strokeWidth="1.6" strokeLinecap="round">
+              <line x1="3" y1="6" x2="19" y2="6" />
+              <line x1="3" y1="11" x2="19" y2="11" />
+              <line x1="3" y1="16" x2="19" y2="16" />
+            </g>
+          )}
+        </svg>
+      </button>
+      <nav className={`kbk-header-nav${menuOpen ? " kbk-header-nav--open" : ""}`}>
         {NAV_LINKS.map(({ href, label }) => (
-          <Link key={href} href={href} style={linkStyle}>
+          <Link
+            key={href}
+            href={href}
+            className="kbk-nav-link"
+            style={linkStyle}
+            onClick={() => setMenuOpen(false)}
+          >
             {pathname === href && <span style={dotStyle} />}
             <span>{label}</span>
           </Link>
@@ -210,6 +240,7 @@ export default function Header() {
             placeholder="SEARCH"
             maxLength={32}
             autoComplete="off"
+            className="kbk-search-input"
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: 12,
@@ -218,7 +249,6 @@ export default function Header() {
               border: `1px solid rgba(33,28,21,${searchFocused ? 0.5 : 0.25})`,
               outline: "none",
               padding: "4px 10px",
-              width: 110,
               color: "#211C15",
               caretColor: "#BE3B33",
               borderRadius: 0,

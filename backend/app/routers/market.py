@@ -17,9 +17,12 @@ from app.services.fear_greed_fetcher import (
 )
 from app.services.finnhub_fetcher import (
     get_earnings_calendar,
-    get_economic_events,
     get_todays_themes,
 )
+from app.services.finnhub_fetcher import (
+    get_economic_events as get_finnhub_economic_events,
+)
+from app.services.fred_fetcher import get_economic_events as get_fred_economic_events
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
@@ -70,13 +73,16 @@ async def market_themes():
 
 @router.get("/events", response_model=list[EconomicEventOut])
 async def market_events():
-    """Upcoming economic-calendar events (CPI, FOMC, jobs, …) from Finnhub.
+    """Upcoming economic-calendar events (CPI, jobs, GDP, PCE, FOMC, …).
 
-    Returns an empty list when Finnhub is unreachable, unconfigured, or the
-    calendar is premium-gated on the current key, so the frontend falls back to
-    its mock events.
+    Prefers FRED (free release schedule); falls back to Finnhub's premium
+    calendar when FRED isn't configured, and to an empty list when neither is
+    available, so the frontend can render its mock events.
     """
-    return await get_economic_events()
+    events = await get_fred_economic_events()
+    if events:
+        return events
+    return await get_finnhub_economic_events()
 
 
 @router.get("/earnings", response_model=list[EarningsEventOut])

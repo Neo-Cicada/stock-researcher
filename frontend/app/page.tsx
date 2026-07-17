@@ -14,13 +14,18 @@ import {
   fetchThemes,
 } from "@/lib/api";
 
-async function getInitialRows() {
+async function getInitialRows(): Promise<{
+  rows: ReturnType<typeof getTrendingRows>;
+  live: boolean;
+}> {
   try {
     const data = await fetchTrending(undefined, 100);
-    return data.map(apiRowToView);
+    // An empty array means the backend answered but has no data yet — still a
+    // live connection, so don't cry "sample data" for a cold cache.
+    return { rows: data.map(apiRowToView), live: true };
   } catch {
-    // Fallback to mock data if backend is unreachable
-    return getTrendingRows();
+    // Backend unreachable — fall back to mock and flag it.
+    return { rows: getTrendingRows(), live: false };
   }
 }
 
@@ -35,11 +40,12 @@ async function getThemes() {
 }
 
 export default async function DashboardPage() {
-  const [rows, season, themes] = await Promise.all([
+  const [initial, season, themes] = await Promise.all([
     getInitialRows(),
     getMarketSeason(),
     getThemes(),
   ]);
+  const { rows, live } = initial;
 
   return (
     <main data-screen-label="Dashboard" className="kbk-page-main">
@@ -74,6 +80,32 @@ export default async function DashboardPage() {
           opacity={0.75}
         />
       </svg>
+
+      {!live && (
+        <div
+          role="status"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 18,
+            padding: "5px 11px",
+            borderWidth: 1,
+            borderStyle: "solid",
+            borderColor: "#C3423F",
+            borderRadius: 2,
+            fontFamily: "var(--font-mono)",
+            fontSize: 10,
+            letterSpacing: "0.16em",
+            color: "#C3423F",
+          }}
+        >
+          <span
+            style={{ width: 6, height: 6, borderRadius: "50%", background: "#C3423F" }}
+          />
+          SAMPLE DATA · BACKEND UNREACHABLE
+        </div>
+      )}
 
       <section className="kbk-dash-grid">
         <TrendingTable rows={rows} />

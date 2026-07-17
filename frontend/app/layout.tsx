@@ -55,6 +55,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GrainOverlay />
         <Header />
         {children}
+        <footer
+          style={{
+            borderTop: "1px solid rgba(33,28,21,0.2)",
+            margin: "40px var(--kbk-header-pr) 0 var(--kbk-header-pl)",
+            padding: "16px 0 28px 0",
+            fontFamily: "var(--font-mono)",
+            fontSize: 10.5,
+            lineHeight: 1.7,
+            opacity: 0.55,
+          }}
+        >
+          <div style={{ letterSpacing: "0.08em" }}>
+            Research and educational use only — not investment advice. Kabuka is
+            not a licensed financial advisor.
+          </div>
+          <div>
+            Market data may be delayed and can fall back to illustrative sample
+            data when a live source is unavailable. Sources: Finnhub, SEC EDGAR,
+            Yahoo Finance, CNN, ApeWisdom — each under its own terms.
+          </div>
+        </footer>
       </body>
     </html>
   );

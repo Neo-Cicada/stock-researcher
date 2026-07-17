@@ -29,8 +29,10 @@ logger = logging.getLogger(__name__)
 FRED_RELEASES_DATES_URL = "https://api.stlouisfed.org/fred/releases/dates"
 
 # How far ahead to populate the calendar. Monthly releases (CPI, jobs) can be
-# ~4-5 weeks out, so a 14-day window often shows nothing — look further.
-LOOKAHEAD_DAYS = 45
+# ~4-5 weeks out, so look ~a month. FRED's /releases/dates caps limit at 1000
+# rows (~37 days of the full firehose sorted ascending from today), so keeping
+# this at 30 stays safely inside one un-truncated page.
+LOOKAHEAD_DAYS = 30
 MAX_EVENTS = 30
 _TTL_SECONDS = 3600  # 1 hour
 _cache: dict = {"data": None, "ts": 0.0}
@@ -63,10 +65,14 @@ _FOMC_2026: list[date] = [
 
 
 def _match_release(release_name: str) -> tuple[str, str] | None:
-    """Map a FRED release name to a (display label, impact), or None to skip."""
-    low = (release_name or "").lower()
+    """Map a FRED release name to a (display label, impact), or None to skip.
+
+    Prefix (not substring) match so we don't catch adjacent releases like "Debt
+    to Gross Domestic Product Ratios" or "Research Consumer Price Index".
+    """
+    low = (release_name or "").strip().lower()
     for needle, label, impact in _CURATED:
-        if needle in low:
+        if low.startswith(needle):
             return label, impact
     return None
 
@@ -146,12 +152,15 @@ async def get_economic_events() -> list[dict]:
                 params={
                     "api_key": api_key,
                     "file_type": "json",
-                    # Vintage = today; the release `date` field still carries the
-                    # scheduled (possibly future) date, which we window-filter
-                    # below. include_release_dates_with_no_data surfaces upcoming
-                    # releases that don't have published values yet.
+                    # realtime_end must reach into the future or FRED only
+                    # returns releases published *today*, not the upcoming
+                    # schedule. include_release_dates_with_no_data surfaces
+                    # future releases that have no published value yet. Results
+                    # are the full firehose sorted ascending from today; we
+                    # window-filter to [today, horizon] below (limit caps at
+                    # 1000, ~37 days — see LOOKAHEAD_DAYS).
                     "realtime_start": today.isoformat(),
-                    "realtime_end": today.isoformat(),
+                    "realtime_end": "9999-12-31",
                     "include_release_dates_with_no_data": "true",
                     "sort_order": "asc",
                     "limit": 1000,

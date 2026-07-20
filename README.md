@@ -1,9 +1,9 @@
 # Kabuka （株価）
 
-A stock-research app with a Japanese woodblock-print (浮世絵) aesthetic. Kabuka surfaces **trending tickers** from Reddit chatter and renders **live market data** for individual stocks — candlestick charts, fundamentals, and sentiment — all drawn as hand-tuned SVG on a rice-paper canvas.
+A stock-research app with a Japanese woodblock-print (浮世絵) aesthetic. Kabuka surfaces **trending tickers** from Reddit chatter and renders **live market data** for individual stocks — candlestick charts, fundamentals, a Five-Petal scorecard, institutional ownership, and sentiment — all drawn as hand-tuned SVG on a rice-paper canvas. It also ships an economic-events calendar, an earnings calendar, and a big-institution 13F directory.
 
-- **Real data:** trending mention counts / ranks / velocity from [ApeWisdom](https://apewisdom.io); live prices, OHLC candles, and fundamentals from Yahoo Finance (via `yfinance`); overall market mood from CNN's Fear & Greed index; and market themes + per-ticker headlines from [Finnhub](https://finnhub.io).
-- **Mock data:** sentiment timelines, mention-volume bars, scorecard pillars, and social posts are generated from a seeded RNG (deterministic across server and client), pending real sources.
+- **Real data:** trending mention counts / ranks / velocity from [ApeWisdom](https://apewisdom.io); live prices, OHLC candles, fundamentals, and institutional ownership from Yahoo Finance (via `yfinance`); overall market mood from CNN's Fear & Greed index; market themes, per-ticker headlines, and the earnings calendar from [Finnhub](https://finnhub.io); the economic-events calendar from [FRED](https://fred.stlouisfed.org) (St. Louis Fed); and big-institution 13F holdings from [SEC EDGAR](https://www.sec.gov/edgar). The stock-detail Five-Petal scorecard's Value / Growth / Quality / Momentum pillars are computed server-side from real fundamentals + candles.
+- **Mock data:** sentiment timelines, mention-volume bars, social posts, and the scorecard's Sentiment pillar are generated from a seeded RNG (deterministic across server and client), pending real sources. Every live surface falls back to this mock data when a provider is unreachable or a ticker has no coverage.
 
 The repo also ships **kabuka-agent**, an autonomous coding agent that wraps the `claude` CLI to plan → execute → verify changes to this codebase.
 
@@ -18,14 +18,16 @@ stock-researcher/
 └── docker-compose.yml   Postgres + backend
 ```
 
-**Data flow:** three backend background tasks keep Postgres fresh — ApeWisdom trending every 10 minutes, yfinance prices every 5 minutes, and a CNN Fear & Greed market-season snapshot every hour. The dashboard (`/`) is a server component that reads `/api/reddit/trending` and `/api/market/*` at render time (falling back to mock rows if the backend is down). The stock detail page (`/stock/[ticker]`) fetches live candles + fundamentals from `/api/stocks/{ticker}/history` (yfinance) and recent headlines from `/api/stocks/{ticker}/news` (Finnhub), falling back per-field to mock data when a ticker is unknown or a provider is unreachable.
+**Data flow:** three backend background tasks keep Postgres fresh — ApeWisdom trending every 10 minutes, yfinance prices every 5 minutes, and a CNN Fear & Greed market-season snapshot every hour. The dashboard (`/`) is a server component that reads `/api/reddit/trending` and `/api/market/*` at render time (falling back to mock rows if the backend is down). The stock detail page (`/stock/[ticker]`) fetches live candles + fundamentals + a computed scorecard from `/api/stocks/{ticker}/history` (yfinance), recent headlines from `/api/stocks/{ticker}/news` (Finnhub), and institutional ownership from `/api/stocks/{ticker}/institutional` (Yahoo Finance), falling back per-field to mock data when a ticker is unknown or a provider is unreachable. The `/events`, `/earnings`, and `/institutions` pages fetch their calendars / directory the same way (FRED, Finnhub, and SEC EDGAR respectively), each with mock fallback.
+
+**Pages:** `/` (dashboard) · `/events` (economic-events almanac) · `/earnings` (earnings almanac) · `/institutions` + `/institutions/[slug]` (13F directory + per-institution holdings) · `/stock/[ticker]` (stock detail).
 
 ## Tech stack
 
 | | |
 |---|---|
 | **Frontend** | Next.js 16, React 19, TypeScript (strict), pure inline styles, hand-rolled SVG charts |
-| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0 (async) + asyncpg, Alembic, PostgreSQL 16, `httpx` (ApeWisdom / CNN / Finnhub), `yfinance`, managed with `uv` |
+| **Backend** | Python 3.12+, FastAPI, SQLAlchemy 2.0 (async) + asyncpg, Alembic, PostgreSQL 16, `httpx` (ApeWisdom / CNN / Finnhub / FRED / SEC EDGAR), `yfinance`, `slowapi` (rate limiting), managed with `uv` |
 | **Agent** | Python + `rich`, wraps the `claude` CLI (uses your Claude subscription — no API key) |
 
 ## Getting started
@@ -82,10 +84,14 @@ Open http://localhost:3000.
 
 | Var | Default | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka` | Async Postgres DSN |
-| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed origins (JSON array) |
-| `DEBUG` | `false` | Debug mode |
-| `FINNHUB_API_KEY` | _(empty)_ | Free [Finnhub](https://finnhub.io) key powering market themes + per-ticker news; endpoints return empty (frontend falls back to mock) when unset |
+| `DATABASE_URL` | _(required)_ | Async Postgres DSN, e.g. `postgresql+asyncpg://postgres:postgres@localhost:5432/kabuka`. No source-code default — the credentialed string lives only in `.env` / your secret manager |
+| `CORS_ORIGINS` | `["http://localhost:3000"]` | Allowed frontend origin(s), JSON array. Set your real domain in production; never `["*"]` |
+| `DEBUG` | `false` | Debug mode; also gates the interactive docs (`/docs`, `/openapi.json`) |
+| `FINNHUB_API_KEY` | _(empty)_ | Free [Finnhub](https://finnhub.io) key powering market themes, per-ticker news, and the earnings calendar; endpoints return empty (frontend falls back to mock) when unset |
+| `FRED_API_KEY` | _(empty)_ | Free [FRED](https://fredaccount.stlouisfed.org/apikeys) key powering the `/events` economic calendar; without it `/events` falls back to mock |
+| `SEC_USER_AGENT` | _(generic default)_ | Descriptive `User-Agent` with contact info that SEC EDGAR requires for the `/api/institutions` 13F fetches; set your own name/email |
+| `RATE_LIMIT_DEFAULT` | `120/minute` | Per-client API rate limit (slowapi syntax) |
+| `ADMIN_TOKEN` | _(empty)_ | Shared secret guarding the manual `POST /api/reddit/fetch` trigger (sent as the `X-Admin-Token` header); empty disables the endpoint |
 
 **Frontend:**
 
@@ -102,18 +108,26 @@ All endpoints are prefixed with `/api`:
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/stocks/` | List all stocks |
 | `GET` | `/api/stocks/{ticker}` | Get a single stock |
-| `GET` | `/api/stocks/{ticker}/history` | Live daily OHLC candles + fundamentals (yfinance); `available:false` for unknown tickers |
+| `GET` | `/api/stocks/{ticker}/history` | Live daily OHLC candles + fundamentals + computed Five-Petal scorecard (yfinance); `available:false` for unknown tickers |
 | `GET` | `/api/stocks/{ticker}/news` | Recent headlines for a ticker (Finnhub company news; optional `name` hint); empty when unavailable |
-| `GET` | `/api/reddit/trending` | Trending tickers with aggregated mentions/ranks (params: `source`, `limit`) |
-| `POST` | `/api/reddit/fetch` | Manually trigger an ApeWisdom fetch |
+| `GET` | `/api/stocks/{ticker}/institutional` | Institutional-ownership summary + top holders (Yahoo Finance); `available:false` when uncovered |
+| `GET` | `/api/reddit/trending` | Trending tickers with aggregated mentions/ranks + merged latest price (params: `source`, `limit`) |
+| `POST` | `/api/reddit/fetch` | Manually trigger an ApeWisdom fetch (guarded by `ADMIN_TOKEN`) |
 | `GET` | `/api/market/season` | Overall market mood — CNN Fear & Greed (+ VIX / put-call / breadth) and a live social bullish % |
 | `GET` | `/api/market/themes` | Today's market themes distilled from Finnhub general news; empty when unavailable |
+| `GET` | `/api/market/events` | Upcoming economic calendar — CPI, jobs, GDP, PCE, PPI, FOMC (FRED + hardcoded FOMC dates) |
+| `GET` | `/api/market/earnings` | Upcoming earnings reports (Finnhub earnings calendar), relevance-ranked then by date |
+| `GET` | `/api/institutions/` | Curated big-institution shortlist, each with a 13F portfolio value + reporting period (SEC EDGAR) |
+| `GET` | `/api/institutions/{slug}` | One institution's latest 13F top holdings; `available:false` for an unknown slug |
+| `GET` | `/api/institutions/{slug}/search?q=` | Search an institution's **entire** 13F for a holding by ticker or issuer name |
 
 ### Example: `GET /api/stocks/NVDA/history`
 
-Live daily OHLC candles plus key fundamentals from yfinance. Unknown or unreachable
-tickers return `{"ticker": "...", "available": false}` with an empty `candles` array and
-`null` `fundamentals`, so the frontend can fall back to mock data.
+Live daily OHLC candles plus key fundamentals from yfinance, and a computed `scorecard`
+(the Value / Growth / Quality / Momentum Five-Petal pillars — `null` when there aren't
+enough fundamentals). Unknown or unreachable tickers return
+`{"ticker": "...", "available": false}` with an empty `candles` array and `null`
+`fundamentals`, so the frontend can fall back to mock data.
 
 ```json
 {
@@ -136,7 +150,18 @@ tickers return `{"ticker": "...", "available": false}` with an empty `candles` a
     "dividend_yield": 0.0002,
     "fifty_two_week_high": 195.62,
     "fifty_two_week_low": 86.62,
-    "beta": 1.66
+    "beta": 1.66,
+    "profit_margins": 0.55,
+    "return_on_equity": 1.19,
+    "debt_to_equity": 12.9,
+    "revenue_growth": 0.69,
+    "earnings_growth": 0.76
+  },
+  "scorecard": {
+    "value": { "score": 34, "inputs": [ /* P/E, P/B, div yield sub-scores */ ] },
+    "growth": { "score": 88, "inputs": [ /* … */ ] },
+    "quality": { "score": 91, "inputs": [ /* … */ ] },
+    "momentum": { "score": 72, "inputs": [ /* … */ ] }
   }
 }
 ```
@@ -166,7 +191,10 @@ uv sync
 uv run python -m agent "Your task description"           # plan → approve → execute → verify
 uv run python -m agent --plan-only "Describe the task"   # plan only
 uv run python -m agent --model sonnet --budget 5.0 "..." # custom model / budget cap
+uv run python -m agent --autonomous --budget 6.0         # pick tasks from AGENT_BACKLOG.md and loop (no gate)
 ```
+
+In `--autonomous` mode it triages the next task from `AGENT_BACKLOG.md` (or a `--goal`), plans, executes, and verifies with no approval gate — committing green tasks to a work branch and hard-reverting red ones. It stops on budget, `--max-iterations`, a consecutive-failure circuit breaker, an empty backlog, or a `.agent-stop` file, and never pushes.
 
 ## Project subagents
 

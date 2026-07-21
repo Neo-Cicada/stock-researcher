@@ -9,15 +9,42 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kabuka"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     environment:
+      # Local default; override any of these via a .env file next to this compose
+      # file or the host environment for a real deploy.
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/kabuka
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      DEBUG: "${DEBUG:-false}"
+      FINNHUB_API_KEY: "${FINNHUB_API_KEY:-}"
+      FRED_API_KEY: "${FRED_API_KEY:-}"
+      SEC_USER_AGENT: "${SEC_USER_AGENT:-}"
+      RATE_LIMIT_DEFAULT: "${RATE_LIMIT_DEFAULT:-120/minute}"
+      ADMIN_TOKEN: "${ADMIN_TOKEN:-}"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_* is baked into the client bundle at build time. Point this
+        # at the backend's public URL for a real deploy.
+        NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-http://localhost:8000}"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

@@ -97,7 +97,35 @@ Open http://localhost:3000.
 
 | Var | Default | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend base URL |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend base URL — **baked into the client bundle at build time**, so set it before building for production |
+
+## Deployment
+
+Both apps ship a production Dockerfile, and `docker-compose.yml` builds and runs the whole stack (Postgres + backend + frontend).
+
+### Whole stack with Docker Compose
+
+```bash
+# Set your real keys/domain (or export them in your shell) so compose passes them through:
+export FINNHUB_API_KEY=... FRED_API_KEY=... SEC_USER_AGENT="You (app; you@example.com)"
+export NEXT_PUBLIC_API_URL=http://localhost:8000   # the frontend bakes this in at build time
+
+docker compose up --build
+# frontend → http://localhost:3000   backend → http://localhost:8000   db → :5432
+```
+
+The backend container **applies migrations on boot** (`docker-entrypoint.sh` runs `alembic upgrade head` before `uvicorn`), so a fresh database provisions its own schema. The Postgres service has a healthcheck and the backend waits for it. The container honors an injected `$PORT` (defaults to 8000), which most managed hosts set.
+
+### Deploying the pieces separately (recommended for production)
+
+- **Backend** → any container host (Fly, Railway, Render, Cloud Run). Build `backend/Dockerfile`, attach a **managed Postgres**, and inject config via the host's secret manager: `DATABASE_URL` (required), `CORS_ORIGINS` (your real frontend origin — never `["*"]`), and the optional `FINNHUB_API_KEY` / `FRED_API_KEY` / `SEC_USER_AGENT` keys. Migrations run automatically at startup. For multi-instance deploys, prefer running `alembic upgrade head` as a one-off release step and starting the server directly, so instances don't race on the upgrade.
+- **Frontend** → **Vercel** (zero-config for Next.js) or the `frontend/Dockerfile` (Next.js standalone output → `node server.js`). Either way, set `NEXT_PUBLIC_API_URL` to the backend's public URL **at build time** — for the Docker image pass it as a build arg:
+
+  ```bash
+  docker build --build-arg NEXT_PUBLIC_API_URL=https://api.kabuka.example.com -t kabuka-frontend ./frontend
+  ```
+
+Keep `DEBUG=false` in production (it also hides `/docs`, `/redoc`, and `/openapi.json`). The API reads the left-most `X-Forwarded-For` hop for rate-limiting, so run it behind a proxy that sets a trustworthy value.
 
 ## API
 

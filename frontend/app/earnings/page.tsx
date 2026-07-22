@@ -2,6 +2,8 @@ import EarningsBoard from "@/components/EarningsBoard";
 import { EARNINGS_SCHEDULE } from "@/lib/dashboard";
 import { fetchEarnings } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 async function getEarnings() {
   // Falls back to the mock EARNINGS_SCHEDULE when the endpoint is unavailable.
   return (await fetchEarnings()) ?? EARNINGS_SCHEDULE;

@@ -9,6 +9,8 @@ import {
 } from "@/lib/dashboard";
 import { fetchInstitutionHoldings } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 const KNOWN = new Set(INSTITUTIONS_MOCK.map((i) => i.slug));
 
 async function getDetail(slug: string): Promise<InstitutionDetailView> {

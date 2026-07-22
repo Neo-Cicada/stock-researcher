@@ -14,6 +14,10 @@ import {
   fetchThemes,
 } from "@/lib/api";
 
+// Fetches live backend data at request time; skip build-time prerender so a
+// slow/unreachable backend can't time out the Vercel build (falls back to mock).
+export const dynamic = "force-dynamic";
+
 async function getInitialRows(): Promise<{
   rows: ReturnType<typeof getTrendingRows>;
   live: boolean;

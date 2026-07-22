@@ -2,6 +2,8 @@ import EventsBoard from "@/components/EventsBoard";
 import { TODAYS_EVENTS } from "@/lib/dashboard";
 import { fetchEconomicEvents } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 async function getEvents() {
   // Falls back to the mock TODAYS_EVENTS when the endpoint is unavailable
   // (Finnhub unreachable/unconfigured, or the calendar premium-gated).

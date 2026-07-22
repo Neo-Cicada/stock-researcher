@@ -22,6 +22,8 @@ import BareTwig from "@/components/BareTwig";
 
 type Params = Promise<{ ticker: string }>;
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { ticker } = await params;
   return { title: `${ticker.toUpperCase()} · Kabuka` };

@@ -2,6 +2,8 @@ import InstitutionsGrid from "@/components/InstitutionsGrid";
 import { INSTITUTIONS_MOCK } from "@/lib/dashboard";
 import { fetchInstitutions } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 async function getInstitutions() {
   // Falls back to the mock shortlist when SEC EDGAR is unavailable.
   return (await fetchInstitutions()) ?? INSTITUTIONS_MOCK;

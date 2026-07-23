@@ -72,21 +72,30 @@ async def store_snapshots(
     if not results:
         return 0
 
-    snapshots = [
-        TrendingSnapshot(
-            ticker=item.get("ticker", ""),
-            name=item.get("name", ""),
-            rank=item.get("rank", 0),
-            mentions=item.get("mentions", 0),
-            upvotes=item.get("upvotes", 0),
-            rank_24h_ago=item.get("rank_24h_ago"),
-            mentions_24h_ago=item.get("mentions_24h_ago"),
-            source=filter_name,
-            fetched_at=fetched_at,
+    # ApeWisdom's paginated results can repeat a ticker across pages. Since every
+    # row in a run shares one fetched_at, a duplicate ticker within a filter would
+    # violate uq_ticker_source_ts inside the single INSERT batch. Dedupe by ticker,
+    # keeping the first (best-ranked) occurrence.
+    seen: set[str] = set()
+    snapshots = []
+    for item in results:
+        ticker = item.get("ticker")
+        if not ticker or ticker in seen:
+            continue
+        seen.add(ticker)
+        snapshots.append(
+            TrendingSnapshot(
+                ticker=ticker,
+                name=item.get("name", ""),
+                rank=item.get("rank", 0),
+                mentions=item.get("mentions", 0),
+                upvotes=item.get("upvotes", 0),
+                rank_24h_ago=item.get("rank_24h_ago"),
+                mentions_24h_ago=item.get("mentions_24h_ago"),
+                source=filter_name,
+                fetched_at=fetched_at,
+            )
         )
-        for item in results
-        if item.get("ticker")
-    ]
 
     db.add_all(snapshots)
     await db.commit()
@@ -110,6 +119,9 @@ async def fetch_all_filters(db: AsyncSession) -> dict[str, int]:
                 logger.info("ApeWisdom %s: %d tickers stored", filter_name, count)
             except Exception:
                 logger.exception("ApeWisdom %s: failed", filter_name)
+                # Clear the failed transaction so the next filter can commit
+                # instead of hitting PendingRollbackError.
+                await db.rollback()
                 results[filter_name] = 0
 
     return results

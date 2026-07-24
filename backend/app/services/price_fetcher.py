@@ -1,5 +1,7 @@
 import asyncio
+import ctypes
 import logging
+import platform
 import time
 from datetime import UTC, datetime
 from functools import partial
@@ -21,14 +23,78 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 BATCH_SIZE = 50
 
+
+# yfinance / pandas / curl_cffi leave large *native* allocations behind after
+# each fetch — process RSS climbs cycle after cycle while Python-traced memory
+# stays flat (confirmed with scripts/mem_probe.py). glibc caches those freed
+# blocks in per-thread arenas instead of returning them to the OS, so RSS only
+# grows. malloc_trim(0) forces glibc to release the free arenas. It's a
+# glibc-only libc call, so we resolve it once and no-op everywhere else
+# (macOS dev boxes, musl/Alpine containers).
+_malloc_trim = None
+_malloc_trim_resolved = False
+
+
+def _release_native_memory() -> None:
+    """Return free heap arenas to the OS after a fetch (Linux/glibc only).
+
+    No-op on platforms without glibc's ``malloc_trim`` (macOS, musl/Alpine).
+    Best-effort: any failure is swallowed and simply skips the trim.
+    """
+    global _malloc_trim, _malloc_trim_resolved
+    if not _malloc_trim_resolved:
+        _malloc_trim_resolved = True
+        if platform.system() == "Linux":
+            try:
+                libc = ctypes.CDLL("libc.so.6")
+                libc.malloc_trim.argtypes = [ctypes.c_size_t]
+                libc.malloc_trim.restype = ctypes.c_int
+                _malloc_trim = libc.malloc_trim
+            except (OSError, AttributeError):
+                _malloc_trim = None
+    if _malloc_trim is not None:
+        try:
+            _malloc_trim(0)
+        except Exception:
+            pass
+
+
 # In-process TTL cache for single-ticker detail (ticker -> (expires_at, payload)).
 DETAIL_CACHE_TTL = 600  # 10 minutes
+DETAIL_CACHE_MAX = 512  # hard cap on distinct tickers held
 _detail_cache: dict[str, tuple[float, dict | None]] = {}
 
 # Institutional ownership changes only quarterly (13F/N-PORT), so cache longer.
 INSTITUTIONAL_CACHE_TTL = 3600  # 1 hour
+INSTITUTIONAL_CACHE_MAX = 512
 _institutional_cache: dict[str, tuple[float, dict | None]] = {}
 MAX_HOLDERS = 8
+
+
+def _cache_put(
+    cache: dict[str, tuple[float, dict | None]],
+    key: str,
+    expires_at: float,
+    value: dict | None,
+    max_size: int,
+) -> None:
+    """Store an entry, evicting expired ones and capping the cache size.
+
+    These caches are module-level and live for the whole process. Without
+    eviction they grow unbounded, because ApeWisdom feeds hundreds of distinct
+    (often junk/delisted) tickers and each stock-detail view seeds another key.
+    We purge expired entries on every write, then, if still over ``max_size``,
+    drop the soonest-to-expire entries.
+    """
+    cache[key] = (expires_at, value)
+    now = time.monotonic()
+    expired = [k for k, (exp, _) in cache.items() if exp <= now]
+    for k in expired:
+        del cache[k]
+    if len(cache) > max_size:
+        by_expiry = sorted(cache.items(), key=lambda kv: kv[1][0])
+        for k, _ in by_expiry[: len(cache) - max_size]:
+            del cache[k]
 
 
 # US equity extended-hours sessions, in America/New_York minutes-of-day.
@@ -236,6 +302,9 @@ async def fetch_prices_async(db: AsyncSession, tickers: list[str]) -> int:
         count += 1
 
     await db.commit()
+    # The batch download left a lot of native (pandas/curl_cffi) memory behind;
+    # nudge glibc to return it so RSS doesn't creep across the 5-min cycles.
+    _release_native_memory()
     return count
 
 
@@ -353,7 +422,8 @@ async def fetch_ticker_detail_async(ticker: str) -> dict | None:
     loop = asyncio.get_event_loop()
     payload = await loop.run_in_executor(None, partial(_fetch_ticker_detail, ticker))
 
-    _detail_cache[ticker] = (now + DETAIL_CACHE_TTL, payload)
+    _cache_put(_detail_cache, ticker, now + DETAIL_CACHE_TTL, payload, DETAIL_CACHE_MAX)
+    _release_native_memory()
     return payload
 
 
@@ -453,5 +523,12 @@ async def fetch_institutional_async(ticker: str) -> dict | None:
     loop = asyncio.get_event_loop()
     payload = await loop.run_in_executor(None, partial(_fetch_institutional, ticker))
 
-    _institutional_cache[ticker] = (now + INSTITUTIONAL_CACHE_TTL, payload)
+    _cache_put(
+        _institutional_cache,
+        ticker,
+        now + INSTITUTIONAL_CACHE_TTL,
+        payload,
+        INSTITUTIONAL_CACHE_MAX,
+    )
+    _release_native_memory()
     return payload

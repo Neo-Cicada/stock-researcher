@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Gloss from "@/components/Gloss";
 import { getTickerProfile } from "@/lib/tickers";
 import { buildPriceSeries, buildRealCandles, buildInstitutionalMock } from "@/lib/series";
 import {
@@ -93,9 +94,7 @@ export default async function StockDetailPage({ params }: { params: Params }) {
       data-screen-label={`Stock Detail — ${profile.ticker}`}
       className="kbk-page-main"
     >
-      <span className="kbk-abs-label">
-        銘柄研究
-      </span>
+      <Gloss text="銘柄研究" placement="right" className="kbk-abs-label" />
 
       <StockHeader
         ticker={profile.ticker}

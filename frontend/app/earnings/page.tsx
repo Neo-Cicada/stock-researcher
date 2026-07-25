@@ -1,3 +1,4 @@
+import Gloss from "@/components/Gloss";
 import EarningsBoard from "@/components/EarningsBoard";
 import { EARNINGS_SCHEDULE } from "@/lib/dashboard";
 import { fetchEarnings } from "@/lib/api";
@@ -15,7 +16,7 @@ export default async function EarningsPage() {
 
   return (
     <main data-screen-label="Earnings" className="kbk-page-main">
-      <span className="kbk-abs-label">決算予定</span>
+      <Gloss text="決算予定" placement="right" className="kbk-abs-label" />
 
       <div
         style={{
@@ -38,7 +39,8 @@ export default async function EarningsPage() {
         >
           Earnings Schedule
         </h1>
-        <span
+        <Gloss
+          text="決算"
           style={{
             fontFamily: "var(--font-mincho)",
             background: "#BE3B33",
@@ -50,9 +52,7 @@ export default async function EarningsPage() {
             transform: "rotate(-2.5deg)",
             display: "inline-block",
           }}
-        >
-          決算
-        </span>
+        />
         <span style={{ fontSize: 12, opacity: 0.55 }}>
           {reportCount} upcoming {reportCount === 1 ? "report" : "reports"} ·
           tap a row for the stock

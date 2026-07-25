@@ -1,5 +1,6 @@
 import type { Theme } from "@/lib/dashboard";
 import BareTwig from "./BareTwig";
+import Gloss from "./Gloss";
 
 export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; quietNote: string }) {
   return (
@@ -12,7 +13,8 @@ export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; q
           style={{ paddingBottom: 18, marginBottom: 18, borderBottom: "1px solid rgba(33,28,21,0.18)" }}
         >
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
-            <span
+            <Gloss
+              text={theme.stamp}
               style={{
                 fontFamily: "var(--font-mincho)",
                 background: "#BE3B33",
@@ -27,9 +29,7 @@ export default function ThemesColumn({ themes, quietNote }: { themes: Theme[]; q
                 transform: `rotate(${theme.rotation}deg)`,
                 flexShrink: 0,
               }}
-            >
-              {theme.stamp}
-            </span>
+            />
             <h3 style={{ fontFamily: "var(--font-mincho)", fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.35, minWidth: 0, overflowWrap: "break-word" }}>
               {theme.title}
             </h3>

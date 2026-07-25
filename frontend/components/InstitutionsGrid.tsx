@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { InstitutionView } from "@/lib/dashboard";
 import { colors } from "@/lib/colors";
+import Gloss from "./Gloss";
 
 // A woodblock "hanko" seal card per institution: a stamped kanji, the name, its
 // category, and a cheap 13F portfolio summary. The whole card links into the
@@ -41,8 +42,11 @@ export default function InstitutionsGrid({
             animationDelay: `${i * 40}ms`,
           }}
         >
-          {/* Stamped seal */}
-          <span
+          {/* Stamped seal — hover it for the kanji's English reading. The card
+              clips its overflow, so the gloss card tucks in beside the seal. */}
+          <Gloss
+            text={inst.kanji}
+            placement="inline-right"
             style={{
               flexShrink: 0,
               width: 46,
@@ -57,9 +61,7 @@ export default function InstitutionsGrid({
               background: colors.hanko,
               transform: `rotate(${(i % 2 === 0 ? -1 : 1) * 2.5}deg)`,
             }}
-          >
-            {inst.kanji}
-          </span>
+          />
 
           <span style={{ minWidth: 0, flex: 1 }}>
             <span

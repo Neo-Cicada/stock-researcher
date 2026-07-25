@@ -1,3 +1,4 @@
+import Gloss from "@/components/Gloss";
 import InstitutionsGrid from "@/components/InstitutionsGrid";
 import { INSTITUTIONS_MOCK } from "@/lib/dashboard";
 import { fetchInstitutions } from "@/lib/api";
@@ -15,7 +16,7 @@ export default async function InstitutionsPage() {
 
   return (
     <main data-screen-label="Institutions" className="kbk-page-main">
-      <span className="kbk-abs-label">機関投資家</span>
+      <Gloss text="機関投資家" placement="right" className="kbk-abs-label" />
 
       <div
         style={{
@@ -38,7 +39,8 @@ export default async function InstitutionsPage() {
         >
           Institutions
         </h1>
-        <span
+        <Gloss
+          text="機関"
           style={{
             fontFamily: "var(--font-mincho)",
             background: "#BE3B33",
@@ -50,9 +52,7 @@ export default async function InstitutionsPage() {
             transform: "rotate(-2.5deg)",
             display: "inline-block",
           }}
-        >
-          機関
-        </span>
+        />
         <span style={{ fontSize: 12, opacity: 0.55 }}>
           {count} big holders · tap a seal for their 13F holdings
         </span>

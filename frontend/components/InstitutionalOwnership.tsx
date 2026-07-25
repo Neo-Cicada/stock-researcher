@@ -1,5 +1,6 @@
 import type { InstitutionalOwnershipView } from "@/lib/types";
 import { colors } from "@/lib/colors";
+import Gloss from "./Gloss";
 
 function fmtShares(n: number): string {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
@@ -34,7 +35,8 @@ export default function InstitutionalOwnership({
     <section style={{ marginTop: 52, borderTop: "1.5px solid #211C15", paddingTop: 28 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
         <span style={subLabelStyle}>INSTITUTIONAL OWNERSHIP · {data.ticker}</span>
-        <span
+        <Gloss
+          text="機関"
           style={{
             fontFamily: "var(--font-mincho)",
             background: "#BE3B33",
@@ -46,9 +48,7 @@ export default function InstitutionalOwnership({
             transform: "rotate(-2.5deg)",
             display: "inline-block",
           }}
-        >
-          機関
-        </span>
+        />
         <span style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, opacity: 0.5 }}>
           {live ? "source: Yahoo Finance · 13F/N-PORT" : "modeled estimate · live data unavailable"}
         </span>

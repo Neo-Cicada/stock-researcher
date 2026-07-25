@@ -2,6 +2,26 @@ import { branchTwigs, branchBlossomsAndBuds, seasonLabel } from "@/lib/series";
 import { colors } from "@/lib/colors";
 import { BlossomFlower, BudGlyph } from "./BlossomFlower";
 
+const PETAL_PATH = "M5 0 C8.6 3, 8.6 8, 5 12 C1.4 8, 1.4 3, 5 0 Z";
+
+// Petals shed from the branch. Hand-tuned rather than seeded so server and
+// client render identically; the four drift keyframes (globals.css) fall at
+// different angles, and the negative delays mean some are already mid-fall on
+// first paint instead of the whole set starting together.
+const FALLING_PETALS = [
+  { left: "12%", top: 58, w: 10, opacity: 0.75, drift: "kabuka-drift-b", duration: 21, delay: -3 },
+  { left: "23%", top: 34, w: 8, opacity: 0.6, drift: "kabuka-drift-c", duration: 26, delay: -14 },
+  { left: "31%", top: 72, w: 11, opacity: 0.8, drift: "kabuka-drift-d", duration: 19, delay: -8 },
+  { left: "38%", top: 46, w: 11, opacity: 0.8, drift: "kabuka-drift-a", duration: 17, delay: 0 },
+  { left: "47%", top: 26, w: 9, opacity: 0.65, drift: "kabuka-drift-c", duration: 24, delay: -19 },
+  { left: "55%", top: 60, w: 12, opacity: 0.78, drift: "kabuka-drift-b", duration: 28, delay: -6 },
+  { left: "63%", top: 40, w: 8, opacity: 0.6, drift: "kabuka-drift-d", duration: 22, delay: -12 },
+  { left: "72%", top: 30, w: 9, opacity: 0.8, drift: "kabuka-drift-b", duration: 23, delay: 6 },
+  { left: "80%", top: 66, w: 10, opacity: 0.7, drift: "kabuka-drift-a", duration: 20, delay: -16 },
+  { left: "88%", top: 38, w: 8, opacity: 0.55, drift: "kabuka-drift-c", duration: 30, delay: -2 },
+  { left: "94%", top: 54, w: 11, opacity: 0.72, drift: "kabuka-drift-d", duration: 25, delay: -10 },
+];
+
 interface MarketSeasonBranchProps {
   fearGreed: number;
   direction: "bullish" | "bearish";
@@ -77,37 +97,25 @@ export default function MarketSeasonBranch({
             </g>
           ))}
         </svg>
-        <div
-          data-petal
-          style={{
-            position: "absolute",
-            left: "38%",
-            top: 46,
-            pointerEvents: "none",
-            opacity: 0,
-            animation: "kabuka-drift-a 17s linear infinite",
-          }}
-        >
-          <svg width={11} height={13} viewBox="0 0 10 12">
-            <path d="M5 0 C8.6 3, 8.6 8, 5 12 C1.4 8, 1.4 3, 5 0 Z" fill={petalColor} opacity={0.8} />
-          </svg>
-        </div>
-        <div
-          data-petal
-          style={{
-            position: "absolute",
-            left: "72%",
-            top: 30,
-            pointerEvents: "none",
-            opacity: 0,
-            animation: "kabuka-drift-b 23s linear infinite",
-            animationDelay: "6s",
-          }}
-        >
-          <svg width={9} height={11} viewBox="0 0 10 12">
-            <path d="M5 0 C8.6 3, 8.6 8, 5 12 C1.4 8, 1.4 3, 5 0 Z" fill={petalColor} opacity={0.8} />
-          </svg>
-        </div>
+        {FALLING_PETALS.map((p, i) => (
+          <div
+            key={i}
+            data-petal
+            style={{
+              position: "absolute",
+              left: p.left,
+              top: p.top,
+              pointerEvents: "none",
+              opacity: 0,
+              animation: `${p.drift} ${p.duration}s linear infinite`,
+              animationDelay: `${p.delay}s`,
+            }}
+          >
+            <svg width={p.w} height={Math.round(p.w * 1.2)} viewBox="0 0 10 12">
+              <path d={PETAL_PATH} fill={petalColor} opacity={p.opacity} />
+            </svg>
+          </div>
+        ))}
       </div>
 
       <aside className="kbk-branch-gauge">

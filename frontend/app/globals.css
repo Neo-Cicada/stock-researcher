@@ -58,6 +58,40 @@ a:hover {
   }
 }
 
+@keyframes kabuka-drift-c {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.75;
+  }
+  80% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate(-40px, 340px) rotate(300deg);
+    opacity: 0;
+  }
+}
+
+@keyframes kabuka-drift-d {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  9% {
+    opacity: 0.8;
+  }
+  82% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(150px, 370px) rotate(-260deg);
+    opacity: 0;
+  }
+}
+
 @keyframes kabuka-inkfade {
   0%,
   100% {
@@ -622,6 +656,98 @@ a:hover {
 @media (max-width: 640px) {
   [data-petal] {
     display: none;
+  }
+}
+
+/* ── Kanji gloss: hover/focus tooltip carrying an English reading ── */
+
+.kbk-gloss {
+  position: relative;
+  cursor: help;
+}
+
+/* The vertical page labels are already positioned — this rule outranks the
+   `position: relative` above, which is declared later in the file. */
+.kbk-abs-label.kbk-gloss {
+  position: absolute;
+}
+
+.kbk-gloss::after {
+  content: attr(data-gloss);
+  position: absolute;
+  z-index: 60;
+  /* The label this sits on may be rotated or set vertically — the card is not. */
+  writing-mode: horizontal-tb;
+  white-space: nowrap;
+  font-family: var(--font-mono), monospace;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  text-transform: none;
+  color: #f5f0e5;
+  background: #211c15;
+  padding: 4px 8px 3px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+
+/* Above, centered — the default. */
+.kbk-gloss[data-gloss-pos="top"]::after {
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, 3px);
+}
+
+.kbk-gloss[data-gloss-pos="top"]:hover::after,
+.kbk-gloss[data-gloss-pos="top"]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Below, centered — for text near the top of the viewport (the header). */
+.kbk-gloss[data-gloss-pos="bottom"]::after {
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translate(-50%, -3px);
+}
+
+.kbk-gloss[data-gloss-pos="bottom"]:hover::after,
+.kbk-gloss[data-gloss-pos="bottom"]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* To the right — for vertical-writing page labels. */
+.kbk-gloss[data-gloss-pos="right"]::after {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translate(-3px, -50%);
+}
+
+/* Same, but tucked in close so it stays inside a clipping parent. */
+.kbk-gloss[data-gloss-pos="inline-right"]::after {
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translate(-3px, -50%);
+  max-width: 130px;
+  white-space: normal;
+}
+
+.kbk-gloss[data-gloss-pos="right"]:hover::after,
+.kbk-gloss[data-gloss-pos="right"]:focus-visible::after,
+.kbk-gloss[data-gloss-pos="inline-right"]:hover::after,
+.kbk-gloss[data-gloss-pos="inline-right"]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kbk-gloss::after {
+    transition: none;
   }
 }
 

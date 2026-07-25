@@ -132,6 +132,30 @@ def _session_for_timestamp(ts) -> str:
     return _session_for_et(et.weekday(), et.hour, et.minute)
 
 
+def _close_series(data, ticker: str):
+    """Extract one ticker's non-NaN Close series from a ``yf.download`` frame.
+
+    The column layout depends on the yfinance version, not just the batch size:
+    a one-ticker download may come back flat (``data["Close"]`` is a Series) or
+    MultiIndexed like a multi-ticker one (``data["Close"]`` is a single-column
+    DataFrame). ``float()`` of a row from the latter raises "float() argument
+    must be a string or a real number, not 'Series'", so normalise to a Series
+    here. Returns ``None`` when this ticker has no usable Close column.
+    """
+    try:
+        close = data["Close"]
+    except (KeyError, TypeError):
+        return None
+    if hasattr(close, "columns"):  # DataFrame (MultiIndex Close block)
+        if ticker in close.columns:
+            close = close[ticker]
+        elif len(close.columns) == 1:
+            close = close.iloc[:, 0]
+        else:
+            return None
+    return close.dropna()
+
+
 def _enrich_extended(results: dict[str, dict]) -> None:
     """Add pre-/post-market last trade to ``results`` in place.
 
@@ -156,11 +180,8 @@ def _enrich_extended(results: dict[str, dict]) -> None:
                 continue
             for ticker in batch:
                 try:
-                    close_col = (
-                        data["Close"] if len(batch) == 1 else data["Close"][ticker]
-                    )
-                    valid = close_col.dropna()
-                    if valid.empty:
+                    valid = _close_series(data, ticker)
+                    if valid is None or valid.empty:
                         continue
                     session = _session_for_timestamp(valid.index[-1])
                     if session not in ("PRE", "POST"):
@@ -203,49 +224,33 @@ def _download_prices(tickers: list[str]) -> dict[str, dict]:
             if data.empty:
                 continue
 
-            # yf.download returns MultiIndex columns when multiple tickers
-            if len(batch) == 1:
-                ticker = batch[0]
-                close_col = data["Close"]
-                if len(close_col.dropna()) >= 2:
-                    last_close = float(close_col.dropna().iloc[-1])
-                    prev_close = float(close_col.dropna().iloc[-2])
-                    pct = ((last_close - prev_close) / prev_close) * 100
-                    results[ticker] = {
-                        "price": round(last_close, 2),
-                        "previous_close": round(prev_close, 2),
-                        "day_change_pct": round(pct, 2),
-                    }
-                elif len(close_col.dropna()) == 1:
-                    last_close = float(close_col.dropna().iloc[-1])
-                    results[ticker] = {
-                        "price": round(last_close, 2),
-                        "previous_close": round(last_close, 2),
-                        "day_change_pct": 0.0,
-                    }
-            else:
-                for ticker in batch:
-                    try:
-                        close_col = data["Close"][ticker]
-                        valid = close_col.dropna()
-                        if len(valid) >= 2:
-                            last_close = float(valid.iloc[-1])
-                            prev_close = float(valid.iloc[-2])
-                            pct = ((last_close - prev_close) / prev_close) * 100
-                            results[ticker] = {
-                                "price": round(last_close, 2),
-                                "previous_close": round(prev_close, 2),
-                                "day_change_pct": round(pct, 2),
-                            }
-                        elif len(valid) == 1:
-                            last_close = float(valid.iloc[-1])
-                            results[ticker] = {
-                                "price": round(last_close, 2),
-                                "previous_close": round(last_close, 2),
-                                "day_change_pct": 0.0,
-                            }
-                    except (KeyError, IndexError):
+            for ticker in batch:
+                try:
+                    valid = _close_series(data, ticker)
+                    if valid is None:
                         continue
+                    if len(valid) >= 2:
+                        last_close = float(valid.iloc[-1])
+                        prev_close = float(valid.iloc[-2])
+                        pct = (
+                            ((last_close - prev_close) / prev_close) * 100
+                            if prev_close
+                            else 0.0
+                        )
+                        results[ticker] = {
+                            "price": round(last_close, 2),
+                            "previous_close": round(prev_close, 2),
+                            "day_change_pct": round(pct, 2),
+                        }
+                    elif len(valid) == 1:
+                        last_close = float(valid.iloc[-1])
+                        results[ticker] = {
+                            "price": round(last_close, 2),
+                            "previous_close": round(last_close, 2),
+                            "day_change_pct": 0.0,
+                        }
+                except (KeyError, IndexError):
+                    continue
         except Exception:
             logger.exception(
                 "yfinance batch download failed for %d tickers", len(batch)

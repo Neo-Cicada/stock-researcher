@@ -3,6 +3,8 @@ import pandas as pd
 
 from app.services import price_fetcher
 from app.services.price_fetcher import (
+    _close_series,
+    _download_prices,
     _fetch_ticker_detail,
     _institutional_from_frames,
     _session_for_et,
@@ -105,3 +107,87 @@ def test_session_for_timestamp_converts_utc_to_eastern():
     # 20:00 UTC = 16:00 EDT -> post-market.
     ts2 = pd.Timestamp("2026-07-13 20:00", tz="UTC")
     assert _session_for_timestamp(ts2) == "POST"
+
+
+# ---- Close-column normalisation / batch download -----------------------------
+
+_DAYS = pd.to_datetime(["2026-07-13", "2026-07-14"])
+
+
+def _flat_frame(closes: list[float]) -> pd.DataFrame:
+    """Single-ticker frame with flat columns (older yfinance layout)."""
+    return pd.DataFrame({"Open": closes, "Close": closes}, index=_DAYS)
+
+
+def _multi_frame(closes: dict[str, list[float]]) -> pd.DataFrame:
+    """MultiIndex (field, ticker) frame — what yf.download returns for a list."""
+    tickers = list(closes)
+    columns = pd.MultiIndex.from_product([["Close", "Open"], tickers])
+    values = [closes[t] for t in tickers] * 2
+    return pd.DataFrame(dict(zip(columns, values)), index=_DAYS, columns=columns)
+
+
+def test_close_series_flat_single_ticker():
+    got = _close_series(_flat_frame([10.0, 11.0]), "NVDA")
+    assert list(got) == [10.0, 11.0]
+
+
+def test_close_series_single_ticker_multiindex():
+    """A one-ticker download can still come back MultiIndexed; not a Series."""
+    got = _close_series(_multi_frame({"NVDA": [10.0, 11.0]}), "NVDA")
+    assert list(got) == [10.0, 11.0]
+    assert float(got.iloc[-1]) == 11.0  # would raise TypeError on a DataFrame
+
+
+def test_close_series_picks_the_requested_ticker():
+    frame = _multi_frame({"NVDA": [10.0, 11.0], "AMD": [5.0, 6.0]})
+    assert list(_close_series(frame, "AMD")) == [5.0, 6.0]
+
+
+def test_close_series_drops_nan_and_missing_columns():
+    frame = _multi_frame({"NVDA": [np.nan, 11.0]})
+    assert list(_close_series(frame, "NVDA")) == [11.0]
+    # Unknown ticker in a multi-column frame -> None, not a stray column.
+    frame2 = _multi_frame({"NVDA": [10.0, 11.0], "AMD": [5.0, 6.0]})
+    assert _close_series(frame2, "GME") is None
+    assert _close_series(pd.DataFrame({"Open": [1.0]}), "NVDA") is None
+
+
+def _patch_download(monkeypatch, frame: pd.DataFrame) -> None:
+    monkeypatch.setattr(price_fetcher.yf, "download", lambda *a, **k: frame)
+    monkeypatch.setattr(price_fetcher, "_enrich_extended", lambda results: None)
+
+
+def test_download_prices_single_ticker_multiindex_frame(monkeypatch):
+    """Regression: single-ticker MultiIndex Close used to raise TypeError."""
+    _patch_download(monkeypatch, _multi_frame({"NVDA": [100.0, 110.0]}))
+    assert _download_prices(["NVDA"]) == {
+        "NVDA": {"price": 110.0, "previous_close": 100.0, "day_change_pct": 10.0}
+    }
+
+
+def test_download_prices_single_ticker_flat_frame(monkeypatch):
+    _patch_download(monkeypatch, _flat_frame([100.0, 110.0]))
+    assert _download_prices(["NVDA"]) == {
+        "NVDA": {"price": 110.0, "previous_close": 100.0, "day_change_pct": 10.0}
+    }
+
+
+def test_download_prices_multi_ticker_and_single_close(monkeypatch):
+    frame = _multi_frame({"NVDA": [100.0, 110.0], "AMD": [np.nan, 6.0]})
+    _patch_download(monkeypatch, frame)
+    got = _download_prices(["NVDA", "AMD", "JUNK"])
+    assert got["NVDA"]["day_change_pct"] == 10.0
+    # Only one valid close -> flat row, no fake day change.
+    assert got["AMD"] == {
+        "price": 6.0,
+        "previous_close": 6.0,
+        "day_change_pct": 0.0,
+    }
+    assert "JUNK" not in got  # no column at all -> skipped, not an exception
+
+
+def test_download_prices_zero_previous_close(monkeypatch):
+    """A 0.00 previous close must not raise ZeroDivisionError."""
+    _patch_download(monkeypatch, _multi_frame({"NVDA": [0.0, 110.0]}))
+    assert _download_prices(["NVDA"])["NVDA"]["day_change_pct"] == 0.0

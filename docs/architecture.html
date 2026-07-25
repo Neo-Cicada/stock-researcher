@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kabuka 株価 — Architecture &amp; Flows</title>
+<style>
+  :root{
+    --paper:#F5F0E5; --paper-2:#EDE6D6; --card:#FBF7EE; --sunk:#E7DFCD;
+    --ink:#211C15; --ink-2:#5A5044; --ink-3:#8B8172;
+    --rule:#D8CFBC; --rule-2:#C4B9A2;
+    --trace:#C3423F; --trace-soft:#E8CFCB;
+    --bull:#4A7C59; --gold:#B8873A; --indigo:#3C5A78; --plum:#7A4B62;
+    --shadow:rgba(33,28,21,.10);
+    --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",Georgia,"Times New Roman",serif;
+    --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --l-external:var(--plum); --l-services:var(--gold); --l-data:var(--indigo);
+    --l-api:var(--trace); --l-client:var(--bull); --l-ui:var(--ink); --l-agent:var(--ink-3);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#17150F; --paper-2:#201C15; --card:#241F17; --sunk:#1B1811;
+      --ink:#EDE6D6; --ink-2:#B4A992; --ink-3:#8A7F6D;
+      --rule:#3A342A; --rule-2:#4C4436;
+      --trace:#E0736F; --trace-soft:#4A2C2A;
+      --bull:#78B489; --gold:#D9A65C; --indigo:#7FA6C9; --plum:#BB88A0;
+      --shadow:rgba(0,0,0,.5); --l-ui:#EDE6D6;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.6;overflow-x:hidden}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.16;
+    mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
+  @media (prefers-color-scheme: dark){body::before{mix-blend-mode:screen;opacity:.07}}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px;position:relative;z-index:2}
+  .wide{max-width:1680px;margin:0 auto;padding:0 22px;position:relative;z-index:2}
+
+  /* ── masthead ───────────────────────────────────────── */
+  header.mast{padding:52px 0 26px}
+  .kanji{font-family:var(--serif);font-size:clamp(46px,8vw,80px);line-height:.98;margin:0;font-weight:600}
+  .kanji small{display:block;font-family:var(--sans);font-size:11px;letter-spacing:.34em;
+    text-transform:uppercase;color:var(--ink-3);margin-bottom:13px}
+  .kanji i{font-style:normal;font-family:var(--serif);color:var(--trace);margin-left:.18em}
+  .mast p.lede{font-family:var(--serif);font-size:18.5px;color:var(--ink-2);max-width:66ch;margin:16px 0 0}
+  .seal{position:absolute;top:48px;right:22px;width:70px;height:70px;border:2px solid var(--trace);
+    border-radius:5px;display:grid;place-items:center;color:var(--trace);font-family:var(--serif);
+    font-size:25px;line-height:1;text-align:center;opacity:.85;transform:rotate(-3deg)}
+  @media(max-width:700px){.seal{display:none}}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));
+    border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);margin-top:26px}
+  .stat{padding:14px 12px;border-right:1px solid var(--rule)}
+  .stat:last-child{border-right:0}
+  .stat b{display:block;font-family:var(--mono);font-size:24px;font-weight:500;letter-spacing:-.02em}
+  .stat span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+
+  /* ── board ──────────────────────────────────────────── */
+  .board{margin:34px 0 10px;border:1px solid var(--rule-2);background:var(--paper-2);
+    box-shadow:0 2px 14px var(--shadow)}
+  .board-head{padding:16px 18px 13px;border-bottom:1px solid var(--rule-2)}
+  .board-head h2{font-family:var(--serif);font-size:20px;margin:0 0 4px;font-weight:600}
+  .board-head p{margin:0 0 11px;font-size:13px;color:var(--ink-2);max-width:88ch}
+  .board-head p b{color:var(--ink);font-weight:600}
+  .legend{display:flex;flex-wrap:wrap;gap:5px 15px;align-items:center}
+  .legend span{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2);
+    display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+  .legend input{margin-left:auto;font:inherit;font-family:var(--mono);font-size:12px;padding:5px 9px;
+    background:var(--card);color:var(--ink);border:1px solid var(--rule-2);min-width:200px}
+  .legend input::placeholder{color:var(--ink-3)}
+
+  .board-body{display:flex;align-items:stretch}
+  @media(max-width:1000px){.board-body{flex-direction:column-reverse}}
+
+  .canvas{flex:1 1 auto;overflow-x:auto;overflow-y:hidden;padding:14px 16px 18px}
+  .canvas-inner{position:relative;min-width:1020px}
+  #wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible}
+  #wires path{fill:none;stroke:var(--rule-2);stroke-width:1.1;opacity:.45}
+  #wires path.hot{stroke:var(--trace);stroke-width:1.9;opacity:1}
+  #wires path.warm{stroke:var(--indigo);stroke-width:1.6;opacity:.95}
+  #wires path.cold{opacity:.06}
+  #wires path.flowline{stroke:var(--trace);stroke-width:1.9;opacity:.95;
+    stroke-dasharray:5 4;animation:march 900ms linear infinite}
+  #wires path.flowline.now{stroke-width:3;filter:drop-shadow(0 0 4px var(--trace))}
+  @keyframes march{to{stroke-dashoffset:-18}}
+  @media (prefers-reduced-motion: reduce){#wires path.flowline{animation:none}}
+
+  .columns{position:relative;z-index:1;display:flex;gap:12px;align-items:flex-start}
+  .col{flex:1 1 0;min-width:0}
+  .col-head{border-bottom:1px solid var(--rule-2);padding-bottom:5px;margin-bottom:9px;
+    display:flex;align-items:baseline;gap:6px;min-height:26px}
+  .col-head b{font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-2);
+    font-weight:600;line-height:1.25;white-space:nowrap}
+  .col-head i{font-style:normal;font-family:var(--serif);font-size:12px;margin-left:auto;opacity:.75}
+  .node{position:relative;display:block;width:100%;text-align:left;background:var(--card);
+    border:1px solid var(--rule);border-left:3px solid var(--accent,var(--rule-2));
+    padding:8px 9px 7px;margin-bottom:7px;cursor:pointer;font:inherit;color:inherit;
+    transition:transform .13s,box-shadow .13s,opacity .2s,border-color .13s}
+  .node:hover{transform:translateY(-1px);box-shadow:0 3px 8px var(--shadow);border-color:var(--ink-3)}
+  .node .nm{display:block;font-family:var(--mono);font-size:11.5px;font-weight:500;line-height:1.3;
+    word-break:break-word}
+  .node .sub{display:flex;justify-content:space-between;align-items:baseline;gap:7px;
+    font-size:10px;color:var(--ink-3);line-height:1.4;margin-top:2px}
+  .node .sub em{font-style:normal;min-width:0}
+  .node .loc{font-family:var(--mono);font-size:9px;color:var(--ink-3);flex:none;opacity:.8}
+  .node .badges{position:absolute;top:-7px;left:-8px;display:flex;gap:2px}
+  .node .badges b{width:17px;height:17px;border-radius:50%;background:var(--trace);color:#FBF7EE;
+    font-family:var(--mono);font-size:9.5px;font-weight:600;display:grid;place-items:center;
+    box-shadow:0 1px 3px var(--shadow)}
+  .node.dim{opacity:.17}
+  .node.onflow{border-color:var(--trace);border-left-color:var(--trace);background:var(--card)}
+  .node.now{box-shadow:0 0 0 2px var(--trace),0 4px 12px var(--shadow)}
+  .node.sel{border-color:var(--trace);border-left-color:var(--trace);
+    box-shadow:0 0 0 2px var(--trace-soft)}
+  .node.rel{border-color:var(--indigo);border-left-color:var(--indigo)}
+  .node.hit{border-color:var(--gold);border-left-color:var(--gold)}
+
+  /* ── flows rail ─────────────────────────────────────── */
+  .flows{flex:0 0 296px;border-left:1px solid var(--rule-2);background:var(--sunk);
+    display:flex;flex-direction:column;max-height:840px}
+  @media(max-width:1000px){.flows{flex:1 1 auto;border-left:0;border-bottom:1px solid var(--rule-2);
+    max-height:none}}
+  .flows h3{margin:0;padding:12px 14px 9px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--ink-3);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:8px}
+  .flows h3 i{font-style:normal;font-family:var(--serif);font-size:13px;letter-spacing:0;
+    text-transform:none;color:var(--gold)}
+  .flow-list{overflow-y:auto;flex:0 1 auto}
+  .flow{display:block;width:100%;text-align:left;background:none;border:0;
+    border-bottom:1px solid var(--rule);padding:10px 14px;cursor:pointer;font:inherit;color:inherit;
+    border-left:3px solid transparent;transition:.13s}
+  .flow:hover{background:var(--paper-2)}
+  .flow b{display:block;font-size:12.5px;font-weight:600;line-height:1.35}
+  .flow span{display:block;font-size:11px;color:var(--ink-3);line-height:1.4;margin-top:2px}
+  .flow.on{background:var(--card);border-left-color:var(--trace)}
+  .flow.on b{color:var(--trace)}
+  .steps{border-top:1px solid var(--rule-2);overflow-y:auto;flex:1 1 auto;background:var(--card)}
+  .steps-head{padding:10px 14px 8px;display:flex;align-items:center;gap:8px;
+    border-bottom:1px solid var(--rule)}
+  .steps-head b{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
+  .steps-head button{margin-left:auto;font:inherit;font-size:11px;padding:3px 9px;cursor:pointer;
+    background:var(--paper-2);color:var(--ink-2);border:1px solid var(--rule-2)}
+  .steps-head button:hover{border-color:var(--trace);color:var(--trace)}
+  .step{display:block;width:100%;text-align:left;background:none;border:0;cursor:pointer;
+    padding:9px 14px 9px 40px;position:relative;font:inherit;color:inherit;
+    border-bottom:1px solid var(--rule)}
+  .step:hover{background:var(--paper-2)}
+  .step::before{content:attr(data-n);position:absolute;left:12px;top:10px;width:18px;height:18px;
+    border-radius:50%;border:1px solid var(--rule-2);color:var(--ink-3);font-family:var(--mono);
+    font-size:9.5px;display:grid;place-items:center}
+  .step.now{background:var(--paper-2)}
+  .step.now::before{background:var(--trace);border-color:var(--trace);color:#FBF7EE}
+  .step b{display:block;font-size:12px;font-weight:600;line-height:1.35}
+  .step u{display:block;text-decoration:none;font-family:var(--mono);font-size:9.5px;
+    color:var(--ink-3);margin:1px 0 3px}
+  .step span{display:block;font-size:11.5px;color:var(--ink-2);line-height:1.45}
+  .empty{padding:16px 14px;font-size:12.5px;color:var(--ink-3);line-height:1.5}
+
+  /* ── drawer ─────────────────────────────────────────── */
+  #panel{position:fixed;top:0;right:0;height:100dvh;width:min(430px,92vw);z-index:60;
+    background:var(--card);border-left:2px solid var(--ink);overflow-y:auto;
+    transform:translateX(102%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+    box-shadow:-8px 0 26px var(--shadow);padding:22px 22px 60px}
+  #panel.open{transform:none}
+  #panel h4{font-family:var(--serif);font-size:22px;margin:6px 0 2px;font-weight:600}
+  #panel .path{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);word-break:break-all;
+    margin-bottom:14px}
+  #panel .close{position:absolute;top:14px;right:16px;font-size:20px;line-height:1;cursor:pointer;
+    background:none;border:0;color:var(--ink-3);padding:4px}
+  #panel .close:hover{color:var(--trace)}
+  #panel .tag{display:inline-block;font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    border:1px solid var(--rule-2);padding:2px 7px;margin:0 4px 6px 0;color:var(--ink-2)}
+  #panel .blk{margin-top:18px;padding-top:14px;border-top:1px solid var(--rule)}
+  #panel .blk b{display:block;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-3);margin-bottom:7px}
+  #panel ul{margin:0;padding-left:17px}
+  #panel li{font-size:13px;margin-bottom:5px}
+  #panel code{font-family:var(--mono);font-size:12px;background:var(--paper-2);padding:1px 4px}
+  #panel .lnk{display:block;width:100%;text-align:left;background:none;border:0;padding:4px 0;
+    cursor:pointer;color:var(--ink);font:inherit;font-size:13px;border-bottom:1px dotted var(--rule)}
+  #panel .lnk:hover{color:var(--trace)}
+  #panel .lnk span{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-right:7px}
+  #scrim{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:59;opacity:0;pointer-events:none;
+    transition:opacity .26s}
+  #scrim.open{opacity:1;pointer-events:auto}
+
+  /* ── reference sections ─────────────────────────────── */
+  section{padding:44px 0 6px}
+  h2.sec{font-family:var(--serif);font-size:26px;margin:0 0 4px;font-weight:600;
+    display:flex;align-items:baseline;gap:12px}
+  h2.sec em{font-style:normal;font-size:16px;color:var(--gold)}
+  .sub-p{color:var(--ink-2);margin:0 0 22px;max-width:76ch;font-size:14.5px}
+  h3.sub-h{font-family:var(--serif);font-size:18px;margin:32px 0 10px;font-weight:600}
+  .tw{overflow-x:auto;border:1px solid var(--rule);background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:660px;font-size:13px}
+  th{text-align:left;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);
+    padding:11px 12px;border-bottom:1px solid var(--ink);white-space:nowrap;font-weight:600}
+  td{padding:10px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--paper-2)}
+  .m{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .verb{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.06em;
+    padding:2px 6px;border:1px solid currentColor}
+  .verb.GET{color:var(--indigo)} .verb.POST{color:var(--trace)}
+  .muted{color:var(--ink-2);font-size:12.5px}
+  .lm{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:9px}
+  .lm div{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--bull);
+    padding:10px 12px}
+  .lm div.mock{border-top-color:var(--rule-2)}
+  .lm b{display:block;font-size:13.5px;font-family:var(--serif);font-weight:600}
+  .lm em{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--bull)}
+  .lm div.mock em{color:var(--ink-3)}
+  .lm p{margin:5px 0 0;font-size:12px;color:var(--ink-2);line-height:1.45}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(252px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--rule);padding:14px 15px}
+  .card b{font-family:var(--mono);font-size:13px;display:block;margin-bottom:3px}
+  .card .tick{font-family:var(--mono);font-size:22px;color:var(--gold);display:block;line-height:1.2}
+  .card p{margin:6px 0 0;font-size:12.5px;color:var(--ink-2)}
+  ol.inv{counter-reset:i;list-style:none;padding:0;margin:0;max-width:88ch}
+  ol.inv li{counter-increment:i;position:relative;padding:11px 0 11px 46px;
+    border-bottom:1px solid var(--rule);font-size:14px}
+  ol.inv li::before{content:counter(i,decimal-leading-zero);position:absolute;left:0;top:11px;
+    font-family:var(--mono);font-size:12px;color:var(--trace)}
+  .mig{display:flex;flex-wrap:wrap;border:1px solid var(--rule);background:var(--card)}
+  .mig div{flex:1 1 164px;padding:12px 14px;border-right:1px solid var(--rule)}
+  .mig div:last-child{border-right:0}
+  .mig code{font-family:var(--mono);font-size:11px;color:var(--trace);display:block}
+  .mig span{font-size:12.5px;color:var(--ink-2)}
+  footer{margin-top:52px;border-top:2px solid var(--ink);padding:22px 0 60px;font-size:12px;
+    color:var(--ink-3);display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between}
+  footer code{font-family:var(--mono)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="seal">株<br>価</div>
+    <h1 class="kanji"><small>Architecture &amp; Flows · 建築図</small>Kabuka<i>株価</i></h1>
+    <p class="lede">Every service, table and screen behind the dashboard and the stock pages.
+    Pick a flow on the right to light the path through the system and read what gets passed
+    at each step.</p>
+    <div class="stats" id="stats"></div>
+  </header>
+</div>
+
+<div class="wide">
+  <div class="board">
+    <div class="board-head">
+      <h2>The System</h2>
+      <p>Columns are concerns; data generally falls left to right, from <b>external sources</b>
+      through <b>services</b> and <b>persistence</b> to the <b>API</b>, the <b>frontend data layer</b>
+      and the <b>screens</b>. Click a box for its dependencies, or a flow for an ordered walk.</p>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="board-body">
+      <div class="canvas">
+        <div class="canvas-inner">
+          <svg id="wires" aria-hidden="true"></svg>
+          <div class="columns" id="columns"></div>
+        </div>
+      </div>
+      <aside class="flows">
+        <h3>Flows <i>流れ</i></h3>
+        <div class="flow-list" id="flowList"></div>
+        <div class="steps" id="steps"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <section>
+    <h2 class="sec">API Surface <em>接点</em></h2>
+    <p class="sub-p">Sixteen routes behind <code class="m">/api</code>, rate-limited by slowapi.
+    The fallback column is the contract that matters: nothing here throws at the frontend.</p>
+    <div class="tw"><table id="ep"><thead><tr>
+      <th></th><th>Path</th><th>Backed by</th><th>On failure</th><th>Notes</th>
+    </tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <h2 class="sec">Background Tasks <em>定期</em></h2>
+    <p class="sub-p">Three lifespan-managed loops in <code class="m">main.py</code>. These are the only
+    writers to Postgres — every request path reads.</p>
+    <div class="cards" id="tk"></div>
+  </section>
+
+  <section>
+    <h2 class="sec">Live vs Mock <em>実と虚</em></h2>
+    <p class="sub-p">The honest inventory. Reddit crowd data has no live source, so the sentiment
+    timeline, mention bars, sparklines and social posts are deterministic fiction — seeded, never random.</p>
+    <div class="lm" id="lm"></div>
+  </section>
+
+  <section>
+    <h2 class="sec">Persistence <em>保存</em></h2>
+    <p class="sub-p">Four tables, five migrations. <code class="m">trending_snapshots</code> and
+    <code class="m">market_seasons</code> are append-only history;
+    <code class="m">stock_prices</code> is upserted one row per ticker.</p>
+    <div class="tw"><table id="tbl"><thead><tr>
+      <th>Table</th><th>Columns</th><th>Shape</th>
+    </tr></thead><tbody></tbody></table></div>
+    <h3 class="sub-h">Migration lineage</h3>
+    <div class="mig" id="mig"></div>
+  </section>
+
+  <section>
+    <h2 class="sec">Configuration <em>設定</em></h2>
+    <p class="sub-p">One required variable. Every optional key degrades a feature rather than breaking boot.</p>
+    <div class="tw"><table id="env"><thead><tr>
+      <th>Variable</th><th>Default</th><th>Effect when unset</th>
+    </tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <h2 class="sec">Invariants <em>不変</em></h2>
+    <p class="sub-p">The rules this codebase holds itself to. Breaking one of these is how the app regresses.</p>
+    <ol class="inv" id="inv"></ol>
+  </section>
+
+  <footer>
+    <span>Kabuka 株価 · architecture map · generated <span id="gen"></span></span>
+    <span>machine-readable twin: <code>docs/architecture.json</code></span>
+  </footer>
+</div>
+
+<div id="scrim"></div>
+<aside id="panel" aria-live="polite"><button class="close" id="pclose" aria-label="Close">×</button><div id="pbody"></div></aside>
+
+<script>
+/* Data mirrors docs/architecture.json — that file is canonical; this copy is
+   inlined so the page works over file:// with no server. */
+const DATA = {"name":"Kabuka (株価)","tagline":"Stock research app with a Japanese woodblock-print aesthetic","generatedAt":"2026-07-25","repo":{"root":"stock-researcher","branch":"main","workspaces":["frontend","backend","agent"]},"stats":{"sourceFiles":79,"linesOfCode":11996,"frontendComponents":21,"clientComponents":7,"routes":6,"apiEndpoints":14,"dbTables":4,"migrations":5,"backendServices":7,"externalSources":6,"testFiles":5,"backgroundTasks":3,"flows":9},"layers":[{"id":"external","label":"External Data Sources","kanji":"外部","note":"Third-party HTTP APIs. Every one degrades to null/empty rather than erroring.","short":"EXTERNAL"},{"id":"services","label":"Backend Services","kanji":"取得","note":"Fetchers + pure computation. All caching is in-process TTL.","short":"SERVICES"},{"id":"data","label":"Persistence","kanji":"保存","note":"PostgreSQL 16 via async SQLAlchemy 2.0 + Alembic.","short":"PERSISTENCE"},{"id":"api","label":"API Surface","kanji":"接点","note":"FastAPI routers, rate-limited by slowapi.","short":"API"},{"id":"client","label":"Frontend Data Layer","kanji":"変換","note":"Typed API client + mock fallback + pure chart geometry.","short":"CLIENT LIB"},{"id":"ui","label":"UI","kanji":"画面","note":"Next.js App Router. Server components by default; 7 are client.","short":"SCREENS"},{"id":"agent","label":"Agent Tooling","kanji":"自動","note":"Standalone CLI wrapper. No runtime coupling to the app.","short":"AGENT"}],"nodes":[{"id":"ext.apewisdom","layer":"external","label":"ApeWisdom","kind":"http","url":"https://apewisdom.io/api/v1.0/filter","auth":"none","provides":["trending tickers","mentions","upvotes","rank deltas"],"notes":"4 filters × up to 3 pages = 300 tickers/filter.","sub":"apewisdom.io · 4 filters"},{"id":"ext.yfinance","layer":"external","label":"yfinance / Yahoo","kind":"library","auth":"none","provides":["quotes","daily OHLC","fundamentals","institutional holders"],"notes":"Synchronous; always run in a thread executor.","sub":"python lib · thread executor"},{"id":"ext.cnn","layer":"external","label":"CNN Fear & Greed","kind":"http","url":"https://production.dataviz.cnn.io/index/fearandgreed/graphdata","auth":"none","provides":["market mood score","VIX / put-call / breadth sub-indicators"],"notes":"Needs browser User-Agent + Referer to pass Fastly bot detection.","sub":"dataviz.cnn.io · browser UA"},{"id":"ext.finnhub","layer":"external","label":"Finnhub","kind":"http","auth":"FINNHUB_API_KEY","provides":["general news → themes","company news","earnings calendar","symbol search","company profile"],"notes":"Economic calendar is premium (403s on free key) — superseded by FRED.","sub":"finnhub.io · api key"},{"id":"ext.fred","layer":"external","label":"FRED (St. Louis Fed)","kind":"http","url":"https://api.stlouisfed.org/fred/releases/dates","auth":"FRED_API_KEY (free)","provides":["CPI / jobs / GDP / PCE / PPI release dates"],"notes":"Real dates, no consensus estimates. FOMC dates are hardcoded (_FOMC_2026 — verify annually).","sub":"stlouisfed.org · free key"},{"id":"ext.sec","layer":"external","label":"SEC EDGAR","kind":"http","url":"https://data.sec.gov/submissions","auth":"SEC_USER_AGENT header","provides":["13F-HR filings","primary_doc.xml","information table XML"],"notes":"Curated shortlist of ~19 filers keyed by verified CIK.","sub":"data.sec.gov · 13F-HR"},{"id":"svc.apewisdom","layer":"services","label":"apewisdom_fetcher","file":"backend/app/services/apewisdom_fetcher.py","loc":127,"kind":"fetcher","exports":["fetch_filter","store_snapshots","fetch_all_filters"],"cache":"none (writes to DB)","notes":"Bulk-inserts TrendingSnapshot rows per (filter, page).","sub":"trending → snapshots"},{"id":"svc.price","layer":"services","label":"price_fetcher","file":"backend/app/services/price_fetcher.py","loc":539,"kind":"fetcher","exports":["fetch_prices_async","fetch_ticker_detail_async","fetch_institutional_async","_institutional_from_frames","_session_for_et"],"cache":"detail 10 min / institutional 1 h, both capped at 512 tickers","notes":"Batches 50 tickers per download; trims native memory; silences yfinance 'possibly delisted' logging; classifies pre/regular/post/closed sessions.","sub":"quotes · candles · holders"},{"id":"svc.scoring","layer":"services","label":"scoring","file":"backend/app/services/scoring.py","loc":311,"kind":"pure","exports":["compute_scorecard"],"cache":"n/a","notes":"Network-free. Piecewise-linear normalisation to 0–100 for Value/Growth/Quality/Momentum. Returns None (→ frontend mock) unless Value + one other pillar are buildable.","sub":"five-petal pillars"},{"id":"svc.feargreed","layer":"services","label":"fear_greed_fetcher","file":"backend/app/services/fear_greed_fetcher.py","loc":142,"kind":"fetcher","exports":["fetch_fear_greed","refresh_market_season","compute_social_bullish_pct"],"cache":"none (writes to DB)","notes":"compute_social_bullish_pct derives crowd bullishness from ApeWisdom rank momentum.","sub":"market mood + social %"},{"id":"svc.finnhub","layer":"services","label":"finnhub_fetcher","file":"backend/app/services/finnhub_fetcher.py","loc":543,"kind":"fetcher","exports":["get_todays_themes","get_ticker_news","get_economic_events","get_earnings_calendar","get_company_name","search_symbols"],"cache":"news 10 min / calendars 1 h","notes":"No-ops to empty when FINNHUB_API_KEY is unset. Earnings ranked by _earnings_relevance before the 30-row cap so mega-caps survive.","sub":"news · calendars · search"},{"id":"svc.fred","layer":"services","label":"fred_fetcher","file":"backend/app/services/fred_fetcher.py","loc":186,"kind":"fetcher","exports":["get_economic_events","_match_release","_fred_events_from_release_dates","_fomc_events"],"cache":"1 h","notes":"Curated release-name matching, 30-day window, merged with hardcoded FOMC schedule.","sub":"release dates + FOMC"},{"id":"svc.sec13f","layer":"services","label":"sec_13f_fetcher","file":"backend/app/services/sec_13f_fetcher.py","loc":676,"kind":"fetcher","exports":["list_institutions","get_institution_holdings","search_institution_holdings","get_institution"],"cache":"summary + holdings 6 h","notes":"Info-table XML parsed once into the FULL ranked holdings list; the top-25 view and whole-portfolio search share that cache. CUSIP→ticker via _CUSIP_TICKER.","sub":"filers · holdings · search"},{"id":"db.engine","layer":"data","label":"database.py","file":"backend/app/database.py","loc":18,"kind":"infra","notes":"Async engine + async_session factory + get_db() dependency. Base declarative class.","sub":"async engine · get_db()"},{"id":"db.stocks","layer":"data","label":"stocks","kind":"table","columns":["id","ticker (unique, idx)","name","sector","created_at"],"model":"backend/app/models/stock.py","sub":"ticker · name · sector"},{"id":"db.trending","layer":"data","label":"trending_snapshots","kind":"table","columns":["id","ticker (idx)","name","rank","mentions","upvotes","rank_24h_ago","mentions_24h_ago","source (idx)","fetched_at (idx, tz)"],"constraints":["unique (ticker, source, fetched_at)"],"model":"backend/app/models/reddit.py","notes":"Append-only. Latest snapshot per source drives /trending.","sub":"append-only history"},{"id":"db.prices","layer":"data","label":"stock_prices","kind":"table","columns":["id","ticker (unique, idx)","price","previous_close","day_change_pct","extended_price","extended_change_pct","market_state","updated_at (tz)"],"model":"backend/app/models/price.py","notes":"One row per ticker, upserted by the price task; merged into /trending.","sub":"one row per ticker"},{"id":"db.seasons","layer":"data","label":"market_seasons","kind":"table","columns":["id","score","rating","vix_score/rating","put_call_score/rating","breadth_score/rating","social_bullish_pct","fetched_at (idx, tz)"],"model":"backend/app/models/market.py","notes":"Append-only; /season serves the most recent row.","sub":"append-only snapshots"},{"id":"api.main","layer":"api","label":"main.py","file":"backend/app/main.py","loc":159,"kind":"app","notes":"FastAPI app; lifespan spawns 3 background tasks; slowapi limiter (RATE_LIMIT_DEFAULT, default 120/minute) + CORS; /docs and /openapi.json only when DEBUG.","sub":"lifespan · limiter · CORS"},{"id":"api.stocks","layer":"api","label":"routers/stocks","file":"backend/app/routers/stocks.py","loc":89,"kind":"router","prefix":"/api/stocks","sub":"/api/stocks"},{"id":"api.reddit","layer":"api","label":"routers/reddit","file":"backend/app/routers/reddit.py","loc":115,"kind":"router","prefix":"/api/reddit","sub":"/api/reddit"},{"id":"api.market","layer":"api","label":"routers/market","file":"backend/app/routers/market.py","loc":95,"kind":"router","prefix":"/api/market","sub":"/api/market"},{"id":"api.institutions","layer":"api","label":"routers/institutions","file":"backend/app/routers/institutions.py","loc":89,"kind":"router","prefix":"/api/institutions","sub":"/api/institutions"},{"id":"api.schemas","layer":"api","label":"schemas/","file":"backend/app/schemas/","loc":244,"kind":"contract","notes":"24 Pydantic response models across stock / reddit / market / institution / institutional.","sub":"24 pydantic models"},{"id":"lib.api","layer":"client","label":"lib/api.ts","file":"frontend/lib/api.ts","loc":858,"kind":"client","notes":"Every fetch* returns null on failure so callers fall back to mock. Each endpoint has a paired api*ToView() mapper.","exports":["fetchTrending","fetchSymbolSearch","fetchTickerHistory","fetchTickerNews","fetchInstitutionalOwnership","fetchMarketSeason","fetchThemes","fetchEconomicEvents","fetchEarnings","fetchInstitutions","fetchInstitutionHoldings","searchInstitutionHoldings"],"sub":"fetch + map + fallback"},{"id":"lib.series","layer":"client","label":"lib/series.ts","file":"frontend/lib/series.ts","loc":302,"kind":"geometry","exports":["buildPriceSeries","buildRealCandles","buildInstitutionalMock","petalsOf","sparkOf","branchTwigs","branchBlossomsAndBuds","seasonLabel"],"notes":"All chart pixel geometry is pre-computed here — there is no charting library anywhere in the app.","sub":"svg pixel geometry"},{"id":"lib.tickers","layer":"client","label":"lib/tickers.ts","file":"frontend/lib/tickers.ts","loc":475,"kind":"mock","exports":["CURATED","TRENDING_TICKERS","getTickerProfile"],"notes":"8 curated profiles; unknown tickers get procedurally generated ones seeded by FNV-1a hash. 128 tickers total.","sub":"curated + procedural"},{"id":"lib.dashboard","layer":"client","label":"lib/dashboard.ts","file":"frontend/lib/dashboard.ts","loc":320,"kind":"mock","notes":"View types + the mock fallback dataset (trending rows, themes, events, earnings, institutions, MARKET_STATE).","sub":"view types + mock set"},{"id":"lib.rng","layer":"client","label":"lib/rng.ts","file":"frontend/lib/rng.ts","loc":25,"kind":"util","exports":["makeRng","hashSeed","clamp"],"notes":"Seeded Park-Miller LCG — guarantees identical server and client renders (no hydration drift).","sub":"park-miller · fnv-1a"},{"id":"lib.types","layer":"client","label":"lib/types.ts","file":"frontend/lib/types.ts","loc":104,"kind":"types","sub":"shared interfaces"},{"id":"lib.misc","layer":"client","label":"colors / composite / glossary / known-tickers","file":"frontend/lib/","loc":117,"kind":"util","notes":"Palette constants, weighted composite score, kanji hover glosses, search autocomplete list.","sub":"palette · gloss · search"},{"id":"ui.layout","layer":"ui","label":"app/layout.tsx","file":"frontend/app/layout.tsx","loc":82,"kind":"layout","notes":"Fonts (Shippori Mincho / IBM Plex Sans / IBM Plex Mono), Header, GrainOverlay.","sub":"fonts · header · grain"},{"id":"ui.dashboard","layer":"ui","label":"/ — Dashboard","file":"frontend/app/page.tsx","loc":135,"kind":"route","rendering":"async server component","notes":"Fetches trending + market season + themes in parallel, each with mock fallback.","sub":"trending · season · themes"},{"id":"ui.stock","layer":"ui","label":"/stock/[ticker]","file":"frontend/app/stock/[ticker]/page.tsx","loc":187,"kind":"route","rendering":"async server component","notes":"Calls /history, /news and /institutional; real candles + real fundamentals + live scorecard when available, mock otherwise. Crowd charts are always mock.","sub":"candles · scorecard · news"},{"id":"ui.events","layer":"ui","label":"/events","file":"frontend/app/events/page.tsx","loc":180,"kind":"route","rendering":"async server component","sub":"economic almanac"},{"id":"ui.earnings","layer":"ui","label":"/earnings","file":"frontend/app/earnings/page.tsx","loc":179,"kind":"route","rendering":"async server component","sub":"earnings almanac"},{"id":"ui.institutions","layer":"ui","label":"/institutions","file":"frontend/app/institutions/page.tsx","loc":112,"kind":"route","rendering":"async server component","sub":"hanko seal grid"},{"id":"ui.institution","layer":"ui","label":"/institutions/[slug]","file":"frontend/app/institutions/[slug]/page.tsx","loc":183,"kind":"route","rendering":"async server component","sub":"13F holdings board"},{"id":"agent.cli","layer":"agent","label":"cli.py","file":"agent/src/agent/cli.py","loc":275,"kind":"agent","notes":"Arg parsing + plan → approve → execute → verify orchestration.","sub":"plan → approve → execute"},{"id":"agent.autonomous","layer":"agent","label":"autonomous.py","file":"agent/src/agent/autonomous.py","loc":190,"kind":"agent","notes":"No-gate loop: triage → plan → execute → verify. Green tasks commit to agent/auto-<ts>; red tasks hard-revert. Never pushes.","sub":"no-gate loop"},{"id":"agent.runner","layer":"agent","label":"runner.py","file":"agent/src/agent/runner.py","loc":210,"kind":"agent","notes":"Spawns `claude -p`; strips ANTHROPIC_API_KEY / AUTH_TOKEN / BEDROCK / VERTEX / CLAUDECODE so billing always lands on the OAuth subscription.","sub":"spawns claude -p"},{"id":"agent.verify","layer":"agent","label":"verify.py","file":"agent/src/agent/verify.py","loc":87,"kind":"agent","notes":"Programmatic gate: reads git status, lints each changed subtree (backend→ruff, frontend→eslint, agent→ruff). Does not trust the model's self-report.","sub":"lints changed subtrees"},{"id":"agent.support","layer":"agent","label":"prompts / display / git_ops / state / config","file":"agent/src/agent/","loc":422,"kind":"agent","notes":"State persists in .git/kabuka-agent-state.json so it is never committed.","sub":"prompts · git · state"}],"edges":[{"from":"svc.apewisdom","to":"ext.apewisdom","kind":"fetches"},{"from":"svc.price","to":"ext.yfinance","kind":"fetches"},{"from":"svc.feargreed","to":"ext.cnn","kind":"fetches"},{"from":"svc.finnhub","to":"ext.finnhub","kind":"fetches"},{"from":"svc.fred","to":"ext.fred","kind":"fetches"},{"from":"svc.sec13f","to":"ext.sec","kind":"fetches"},{"from":"svc.price","to":"svc.scoring","kind":"imports","note":"compute_scorecard folded into the /history payload"},{"from":"svc.apewisdom","to":"db.trending","kind":"writes"},{"from":"svc.price","to":"db.prices","kind":"writes"},{"from":"svc.feargreed","to":"db.seasons","kind":"writes"},{"from":"svc.feargreed","to":"db.trending","kind":"reads","note":"rank momentum → social_bullish_pct"},{"from":"api.main","to":"api.stocks","kind":"mounts"},{"from":"api.main","to":"api.reddit","kind":"mounts"},{"from":"api.main","to":"api.market","kind":"mounts"},{"from":"api.main","to":"api.institutions","kind":"mounts"},{"from":"api.main","to":"svc.apewisdom","kind":"schedules","note":"every 10 min"},{"from":"api.main","to":"svc.price","kind":"schedules","note":"every 5 min, +30 s boot delay"},{"from":"api.main","to":"svc.feargreed","kind":"schedules","note":"every hour"},{"from":"api.main","to":"db.engine","kind":"uses"},{"from":"api.stocks","to":"svc.price","kind":"calls"},{"from":"api.stocks","to":"svc.finnhub","kind":"calls"},{"from":"api.stocks","to":"db.stocks","kind":"reads"},{"from":"api.reddit","to":"svc.apewisdom","kind":"calls"},{"from":"api.reddit","to":"db.trending","kind":"reads"},{"from":"api.reddit","to":"db.prices","kind":"reads"},{"from":"api.market","to":"svc.feargreed","kind":"calls"},{"from":"api.market","to":"svc.finnhub","kind":"calls"},{"from":"api.market","to":"svc.fred","kind":"calls"},{"from":"api.market","to":"db.seasons","kind":"reads"},{"from":"api.institutions","to":"svc.sec13f","kind":"calls"},{"from":"api.institutions","to":"svc.finnhub","kind":"calls","note":"ticker → company name, to bridge search into 13F issuer names"},{"from":"api.stocks","to":"api.schemas","kind":"validates"},{"from":"api.reddit","to":"api.schemas","kind":"validates"},{"from":"api.market","to":"api.schemas","kind":"validates"},{"from":"api.institutions","to":"api.schemas","kind":"validates"},{"from":"lib.api","to":"api.stocks","kind":"http"},{"from":"lib.api","to":"api.reddit","kind":"http"},{"from":"lib.api","to":"api.market","kind":"http"},{"from":"lib.api","to":"api.institutions","kind":"http"},{"from":"lib.api","to":"lib.dashboard","kind":"imports","note":"view types + mock fallback"},{"from":"lib.api","to":"lib.types","kind":"imports"},{"from":"lib.series","to":"lib.rng","kind":"imports"},{"from":"lib.series","to":"lib.types","kind":"imports"},{"from":"lib.tickers","to":"lib.rng","kind":"imports"},{"from":"lib.dashboard","to":"lib.tickers","kind":"imports"},{"from":"lib.dashboard","to":"lib.series","kind":"imports"},{"from":"ui.dashboard","to":"lib.api","kind":"imports"},{"from":"ui.dashboard","to":"lib.dashboard","kind":"imports"},{"from":"ui.stock","to":"lib.api","kind":"imports"},{"from":"ui.stock","to":"lib.series","kind":"imports"},{"from":"ui.stock","to":"lib.tickers","kind":"imports"},{"from":"ui.stock","to":"lib.misc","kind":"imports"},{"from":"ui.events","to":"lib.api","kind":"imports"},{"from":"ui.events","to":"lib.dashboard","kind":"imports"},{"from":"ui.earnings","to":"lib.api","kind":"imports"},{"from":"ui.earnings","to":"lib.dashboard","kind":"imports"},{"from":"ui.institutions","to":"lib.api","kind":"imports"},{"from":"ui.institution","to":"lib.api","kind":"imports"},{"from":"ui.layout","to":"ui.dashboard","kind":"wraps"},{"from":"agent.cli","to":"agent.runner","kind":"imports"},{"from":"agent.cli","to":"agent.verify","kind":"imports"},{"from":"agent.cli","to":"agent.autonomous","kind":"imports"},{"from":"agent.cli","to":"agent.support","kind":"imports"},{"from":"agent.autonomous","to":"agent.runner","kind":"imports"},{"from":"agent.autonomous","to":"agent.verify","kind":"imports"},{"from":"agent.autonomous","to":"agent.support","kind":"imports"}],"endpoints":[{"method":"GET","path":"/api/health","router":"main","sources":[],"fallback":"n/a","summary":"Liveness check."},{"method":"GET","path":"/api/stocks/","router":"stocks","sources":["postgres"],"fallback":"empty list","summary":"List rows from the stocks table."},{"method":"GET","path":"/api/stocks/search?q=","router":"stocks","sources":["finnhub"],"fallback":"empty list","summary":"Symbol autocomplete for the header search."},{"method":"GET","path":"/api/stocks/{ticker}/history","router":"stocks","sources":["yfinance","scoring"],"fallback":"available=false → frontend mock","summary":"Daily OHLC candles + fundamentals + computed Five-Petal scorecard. Unknown/delisted tickers return available=false rather than an error."},{"method":"GET","path":"/api/stocks/{ticker}/news","router":"stocks","sources":["finnhub"],"fallback":"empty list","summary":"Company headlines, re-ranked so stories naming the company surface first. Optional ?name= sharpens ranking."},{"method":"GET","path":"/api/stocks/{ticker}/institutional","router":"stocks","sources":["yfinance"],"fallback":"available=false → buildInstitutionalMock","summary":"Ownership %, filer count, top holders from Yahoo major_holders / institutional_holders."},{"method":"GET","path":"/api/stocks/{ticker}","router":"stocks","sources":["postgres"],"fallback":"404","summary":"Single stock row. Declared last so it does not shadow /search and /{ticker}/*."},{"method":"GET","path":"/api/reddit/trending","router":"reddit","sources":["postgres"],"fallback":"empty list","summary":"Latest trending snapshot aggregated across sources, left-joined with stock_prices. Params: source, limit."},{"method":"POST","path":"/api/reddit/fetch","router":"reddit","sources":["apewisdom"],"fallback":"n/a","auth":"X-Admin-Token (disabled when ADMIN_TOKEN empty)","summary":"Manual ApeWisdom ingest trigger."},{"method":"GET","path":"/api/market/season","router":"market","sources":["postgres","cnn"],"fallback":"last stored row, else available=false","summary":"Fear & Greed overall + sub-indicators + live social-bullish %."},{"method":"GET","path":"/api/market/themes","router":"market","sources":["finnhub"],"fallback":"empty list","summary":"Today's themes distilled from general market news."},{"method":"GET","path":"/api/market/events","router":"market","sources":["fred","finnhub"],"fallback":"FRED → Finnhub → empty → frontend mock","summary":"Economic calendar. FRED gives real dates + impact but no consensus estimates."},{"method":"GET","path":"/api/market/earnings","router":"market","sources":["finnhub"],"fallback":"empty list","summary":"Yesterday → +7 days, relevance-ranked before the cap, then ordered by date."},{"method":"GET","path":"/api/institutions/","router":"institutions","sources":["sec"],"fallback":"portfolio_value=null per row; list always renders","summary":"Curated filer shortlist with a cheap 13F portfolio summary."},{"method":"GET","path":"/api/institutions/{slug}","router":"institutions","sources":["sec"],"fallback":"available=false → frontend mock","summary":"Top 25 positions by value, with rank + portfolio %."},{"method":"GET","path":"/api/institutions/{slug}/search?q=","router":"institutions","sources":["sec","finnhub"],"fallback":"available=false","summary":"Searches the ENTIRE 13F, not just top positions. Matches by ticker, issuer substring, or Finnhub-resolved company-name tokens."}],"backgroundTasks":[{"name":"periodic_apewisdom_fetch","interval":"600 s","startDelay":"0 s","writes":"trending_snapshots","source":"ApeWisdom"},{"name":"periodic_price_fetch","interval":"300 s","startDelay":"30 s","writes":"stock_prices","source":"yfinance","note":"Delayed so a trending snapshot exists to pull tickers from."},{"name":"periodic_market_season_fetch","interval":"3600 s","startDelay":"0 s","writes":"market_seasons","source":"CNN Fear & Greed"}],"migrations":[{"rev":"f2d902d1e44e","summary":"initial reddit tables"},{"rev":"fa9d44ea0aa4","summary":"replace reddit tables with ApeWisdom trending_snapshots"},{"rev":"3853f72ee731","summary":"add stock_prices"},{"rev":"67d62df815c8","summary":"add market_seasons"},{"rev":"a1c7e9b4d201","summary":"add extended-hours price columns"}],"components":[{"name":"Header","loc":333,"client":true,"why":"usePathname() for nav highlighting + search form with autocomplete"},{"name":"TrendingTable","loc":340,"client":true,"why":"pagination (20/page), subreddit filter tabs, sort — re-fetches on change"},{"name":"EarningsBoard","loc":276,"client":true,"why":"pagination (10/page), date grouping, staggered reveal, session markers"},{"name":"HoldingsBoard","loc":267,"client":true,"why":"pagination + weight bars, rows deep-link to /stock/[ticker]"},{"name":"HoldingSearch","loc":220,"client":true,"why":"live 'does this institution hold X?' query"},{"name":"EventsBoard","loc":187,"client":true,"why":"pagination + impact discs"},{"name":"ScorecardPillars","loc":88,"client":true,"why":"pillar card expand/collapse"},{"name":"MarketSeasonBranch","loc":158,"client":false},{"name":"InstitutionsGrid","loc":128,"client":false},{"name":"InstitutionalOwnership","loc":115,"client":false},{"name":"StockHeader","loc":84,"client":false},{"name":"ThemesColumn","loc":80,"client":false},{"name":"WhyThisSentiment","loc":56,"client":false},{"name":"BareTwig","loc":53,"client":false},{"name":"Gloss","loc":50,"client":false},{"name":"BlossomFlower","loc":47,"client":false},{"name":"TrendingSkeleton","loc":30,"client":false},{"name":"FundamentalsGrid","loc":29,"client":false},{"name":"SentimentTimeline","loc":28,"client":false},{"name":"GrainOverlay","loc":23,"client":false},{"name":"MentionVolumeChart","loc":23,"client":false},{"name":"CandlestickChart","loc":22,"client":false},{"name":"PetalMeter","loc":20,"client":false}],"liveVsMock":[{"surface":"Trending table","state":"live","source":"ApeWisdom + yfinance","note":"Prices merged from stock_prices; sentiment + sparkline still mock."},{"surface":"Market Season gauge","state":"live","source":"CNN Fear & Greed"},{"surface":"Today's Themes","state":"live","source":"Finnhub general news"},{"surface":"Candlestick chart","state":"live","source":"yfinance OHLC"},{"surface":"Fundamentals grid","state":"live","source":"yfinance"},{"surface":"Scorecard — Value / Growth / Quality / Momentum","state":"live","source":"scoring.py over yfinance","note":"LIVE badge distinguishes it from the mock fallback."},{"surface":"Scorecard — Sentiment pillar","state":"mock","source":"—","note":"Appended client-side; no live crowd source."},{"surface":"Institutional ownership (stock page)","state":"live","source":"Yahoo Finance"},{"surface":"Institution 13F holdings","state":"live","source":"SEC EDGAR"},{"surface":"Economic calendar","state":"live","source":"FRED","note":"Dates + impact real; estimate columns always null."},{"surface":"Earnings calendar","state":"live","source":"Finnhub"},{"surface":"Sentiment timeline","state":"mock","source":"—"},{"surface":"Mention volume bars","state":"mock","source":"—"},{"surface":"Social posts","state":"mock","source":"—"},{"surface":"Sparklines","state":"mock","source":"—"}],"config":{"backend":[{"key":"DATABASE_URL","required":true,"default":null,"note":"No source-code default — the credentialed string lives only in .env."},{"key":"CORS_ORIGINS","required":false,"default":"[\"http://localhost:3000\"]","note":"Must list real origins in production; never [\"*\"]."},{"key":"DEBUG","required":false,"default":"false","note":"Also gates /docs and /openapi.json."},{"key":"FINNHUB_API_KEY","required":false,"default":"\"\"","note":"Empty → themes/news/earnings/search return empty."},{"key":"FRED_API_KEY","required":false,"default":"\"\"","note":"Empty → /events falls back to Finnhub then mock."},{"key":"SEC_USER_AGENT","required":false,"default":"generic string","note":"SEC requires contact info; set your own."},{"key":"RATE_LIMIT_DEFAULT","required":false,"default":"120/minute"},{"key":"ADMIN_TOKEN","required":false,"default":"\"\"","note":"Empty disables POST /api/reddit/fetch entirely."}],"frontend":[{"key":"NEXT_PUBLIC_API_URL","required":false,"default":"http://localhost:8000"}]},"tests":[{"file":"backend/tests/test_price_fetcher.py","loc":193,"covers":"yfinance NaN/empty guards, _institutional_from_frames, extended-hours session classification"},{"file":"backend/tests/test_finnhub_fetcher.py","loc":272,"covers":"theme distillation, news relevance, calendar shaping"},{"file":"backend/tests/test_sec_13f_fetcher.py","loc":133,"covers":"info-table aggregation, summary parse, accession selection, CUSIP→ticker"},{"file":"backend/tests/test_scoring.py","loc":158,"covers":"pillar normalisation, RSI, degradation-to-mock rules"},{"file":"backend/tests/test_fred_fetcher.py","loc":85,"covers":"release-name matching, date-window filtering, FOMC schedule"}],"invariants":["Every external source degrades to null/empty/available=false — the UI never shows an error state, it shows deterministic mock.","All randomness is seeded (Park-Miller LCG + FNV-1a) so server and client renders match exactly.","yfinance is synchronous; it is always dispatched through a thread executor, never awaited directly.","No charting library — every chart is hand-built SVG whose pixel geometry is computed in lib/series.ts.","No CSS framework — styles are inline; globals.css holds only resets and keyframes.","Inside SVG <text>, font names must be literal — CSS variables do not resolve.","In React inline styles, never mix `border` shorthand with `borderColor` — use the three long-hand properties.","scoring.py is pure and network-free, which is why it can be unit-tested without fixtures.","The agent workspace has no runtime coupling to the app; it only shells out to the `claude` CLI."],"flows":[{"id":"trending-ingest","title":"Trending ingest → price enrichment","description":"The 10-minute and 5-minute background loops that keep the dashboard table warm.","steps":[{"node":"api.main","title":"Lifespan spawns the loops","detail":"periodic_apewisdom_fetch starts immediately; periodic_price_fetch waits 30 s so a snapshot exists to read tickers from."},{"node":"ext.apewisdom","title":"Paginate four filters","detail":"all-stocks, wallstreetbets, investing, Daytrading × 3 pages = up to 300 tickers each."},{"node":"svc.apewisdom","title":"Bulk-insert snapshots","detail":"Rows carry rank, mentions, upvotes and the 24 h-ago deltas. Unique on (ticker, source, fetched_at)."},{"node":"db.trending","title":"Append, never update","detail":"/trending reads the latest fetched_at per source, so history stays queryable."},{"node":"svc.price","title":"Batch-download 50 at a time","detail":"Tickers come from the newest snapshot. yfinance is synchronous, so the download runs in a thread executor."},{"node":"ext.yfinance","title":"Latest + previous close","detail":"Extended-hours price and session state (pre / regular / post / closed) come back on the same pass."},{"node":"db.prices","title":"Upsert one row per ticker","detail":"price, previous_close, day_change_pct, extended_price, extended_change_pct, market_state, updated_at."},{"node":"api.reddit","title":"Left-join at read time","detail":"Snapshots aggregate across sources and merge stock_prices. A ticker with no price row still renders — with mock sentiment."}]},{"id":"dashboard-load","title":"Dashboard cold load","description":"What happens when someone hits / — three parallel fetches, three independent fallbacks.","steps":[{"node":"ui.dashboard","title":"Async server component","detail":"No spinner: the page awaits all three fetches before it streams."},{"node":"lib.api","title":"Three fetches, no throws","detail":"fetchTrending, fetchMarketSeason, fetchThemes. Each returns null on any failure."},{"node":"api.reddit","title":"GET /api/reddit/trending","detail":"Latest snapshot per source, aggregated by ticker, joined to stock_prices."},{"node":"api.market","title":"GET /season and /themes","detail":"Season serves the newest market_seasons row; themes proxy Finnhub general news."},{"node":"lib.dashboard","title":"Fall back panel by panel","detail":"Null trending → getTrendingRows(). Null season → MARKET_STATE. The three degrade independently, so one dead source doesn't blank the page."},{"node":"lib.series","title":"Blossoms from the score","detail":"branchBlossomsAndBuds() turns the Fear & Greed number into open blossoms vs closed buds on the season branch."},{"node":"ui.dashboard","title":"TrendingTable takes over","detail":"Initial rows arrive as props; after that the client component re-fetches directly on filter or sort change."}]},{"id":"stock-page","title":"Stock page cold load","description":"/stock/[ticker] — three backend calls, each with its own mock fallback.","steps":[{"node":"ui.stock","title":"Resolve the profile first","detail":"getTickerProfile() always succeeds: curated for the 8 known tickers, procedurally generated from an FNV-1a seed for anything else."},{"node":"lib.api","title":"Three parallel fetches","detail":"fetchTickerHistory, fetchTickerNews, fetchInstitutionalOwnership."},{"node":"api.stocks","title":"GET /{ticker}/history","detail":"Unknown or delisted tickers return available=false — a 200, not an error."},{"node":"svc.price","title":"10-minute detail cache","detail":"Capped at 512 distinct tickers so junk trending symbols can't grow it without bound."},{"node":"ext.yfinance","title":"OHLC + fundamentals","detail":"Includes profit margins, ROE, debt/equity and the growth rates the scorecard needs."},{"node":"svc.scoring","title":"compute_scorecard()","detail":"Pure and network-free — which is why it can be unit-tested with no fixtures."},{"node":"lib.series","title":"buildRealCandles()","detail":"Emits the same geometry contract as the mock buildPriceSeries, so CandlestickChart can't tell them apart."},{"node":"ui.stock","title":"LIVE badge, or an honest note","detail":"Real scorecard → LIVE badge. Null → profile.pillars plus a footer admitting it. The Sentiment pillar is always appended client-side."}]},{"id":"scorecard","title":"Scorecard, and its refusal to guess","description":"The one place the app computes rather than proxies — and how it declines when the inputs are too thin.","steps":[{"node":"ext.yfinance","title":"Raw fundamentals","detail":"trailingPE, priceToBook, dividendYield, revenueGrowth, earningsGrowth, profitMargins, returnOnEquity, debtToEquity."},{"node":"svc.price","title":"Coerce before scoring","detail":"_num() strips NaN and None so scoring never sees a value it has to defend against."},{"node":"svc.scoring","title":"① Value","detail":"P/E, P/B and dividend yield, each mapped through a piecewise-linear curve (_lin) onto 0–100."},{"node":"svc.scoring","title":"② Growth","detail":"Revenue and earnings YoY, plus P/E compression."},{"node":"svc.scoring","title":"③ Quality","detail":"Profit margin, ROE, debt/equity."},{"node":"svc.scoring","title":"④ Momentum","detail":"The only pillar needing candles rather than fundamentals: distance from the 50-DMA, RSI-14, position in the 52-week range, 3-month change."},{"node":"svc.scoring","title":"Return None rather than guess","detail":"Value plus at least one other pillar must be buildable. An ETF or junk ticker gets mock data — not a confidently wrong score."},{"node":"lib.api","title":"apiScorecardToPillars()","detail":"Appends the mock Sentiment pillar, because Reddit crowd data has no live source at all."}]},{"id":"institution-search","title":"13F search by bare ticker","description":"“Does this filer hold AAOI?” — the flow that needs Finnhub to bridge a symbol into a filing.","steps":[{"node":"ui.institution","title":"HoldingSearch","detail":"A client component on /institutions/[slug] takes the query."},{"node":"lib.api","title":"searchInstitutionHoldings()","detail":"GET /api/institutions/{slug}/search?q="},{"node":"api.institutions","title":"_is_ticker()","detail":"A short all-caps query is treated as a symbol rather than a company name."},{"node":"svc.finnhub","title":"get_company_name()","detail":"profile2 resolves AAOI → “Applied Optoelectronics Inc”. This is the bridge: 13F filings list issuer names, not tickers."},{"node":"svc.sec13f","title":"_get_full_holdings()","detail":"A 6-hour cache of the entire parsed info table — not the top-25 slice the detail page shows."},{"node":"ext.sec","title":"Information-table XML","detail":"Fetched once per filer per 6 h. SEC_USER_AGENT must carry real contact info or EDGAR may throttle you."},{"node":"svc.sec13f","title":"_matches_query()","detail":"Matches on exact ticker (via _CUSIP_TICKER), issuer-name substring, or the Finnhub name tokens — so small-caps with unmapped CUSIPs stay findable by symbol."},{"node":"api.institutions","title":"Empty is not broken","detail":"matches: [] means they genuinely don't hold it. available: false means EDGAR was unreachable. The UI says different things for each."}]},{"id":"market-season","title":"Market season refresh","description":"The hourly loop behind the blossom branch — and the only place two sources are blended into one number.","steps":[{"node":"api.main","title":"Hourly task","detail":"periodic_market_season_fetch, MARKET_FETCH_INTERVAL = 3600."},{"node":"ext.cnn","title":"Get past the bot check","detail":"Fastly refuses the request without a browser User-Agent and Referer."},{"node":"svc.feargreed","title":"Overall + sub-indicators","detail":"score and rating, plus VIX, put-call and breadth. Every sub-indicator is nullable — CNN drops them without warning."},{"node":"db.trending","title":"Read rank momentum","detail":"compute_social_bullish_pct() compares recent snapshots: tickers climbing the ApeWisdom ranks against those falling."},{"node":"db.seasons","title":"Append a snapshot","detail":"Never updated in place, so mood history stays queryable later."},{"node":"api.market","title":"Serve newest, or last known","detail":"On CNN failure the endpoint returns the last stored row rather than nothing. available=false only if it has never once succeeded."},{"node":"lib.series","title":"seasonLabel()","detail":"Maps the 0–100 score onto a woodblock season and decides how many blossoms open."}]},{"id":"economic-calendar","title":"Economic calendar fallback chain","description":"Three tiers deep — the clearest example of the app's degradation discipline.","steps":[{"node":"ui.events","title":"/events server component","detail":"Renders EventsBoard: paginated 10 per page, grouped by date, impact discs per row."},{"node":"lib.api","title":"fetchEconomicEvents()","detail":"Null on failure — the page substitutes TODAYS_EVENTS."},{"node":"api.market","title":"Tier 1 — FRED","detail":"get_economic_events() from fred_fetcher is tried first."},{"node":"svc.fred","title":"Curated release matching","detail":"_match_release() keeps CPI, Employment Situation, GDP, PCE, PPI, retail sales and jobless claims, then windows to LOOKAHEAD_DAYS."},{"node":"svc.fred","title":"Merge FOMC by hand","detail":"_FOMC_2026 is hardcoded from the Fed's published schedule. Verify it annually — nothing fails loudly when it goes stale."},{"node":"svc.finnhub","title":"Tier 2 — Finnhub","detail":"Only reached if FRED yields nothing. Its economic calendar is premium; a free key 403s, which is caught and turned into []."},{"node":"lib.dashboard","title":"Tier 3 — mock","detail":"An empty list is indistinguishable from no backend at all, so the almanac renders either way."}]},{"id":"header-search","title":"Header symbol search","description":"The small one — local list first, network only if that misses.","steps":[{"node":"ui.layout","title":"Header sits on every page","detail":"'use client' purely for usePathname() nav highlighting and this form."},{"node":"lib.misc","title":"KNOWN_TICKERS first","detail":"A flat local list answers instantly, with no request at all."},{"node":"lib.api","title":"fetchSymbolSearch()","detail":"GET /api/stocks/search?q= for anything the local list misses."},{"node":"api.stocks","title":"Route order matters","detail":"/search is declared before /{ticker}, or the catch-all would swallow it."},{"node":"svc.finnhub","title":"Symbol search","detail":"Capped at 8 results. Empty when FINNHUB_API_KEY is unset — the local list is then all you get."},{"node":"ui.stock","title":"Navigate to /stock/[ticker]","detail":"Any symbol resolves. Unknown ones get a generated profile rather than a 404."}]},{"id":"agent-loop","title":"Agent autonomous iteration","description":"A separate workspace with no runtime coupling — it edits the repo, it never imports from it.","steps":[{"node":"agent.cli","title":"--autonomous dispatch","detail":"Budget is the only spend limiter; the installed claude CLI has no turn-limit flag."},{"node":"agent.autonomous","title":"Triage","detail":"Picks the next task from AGENT_BACKLOG.md or --goal. An empty backlog stops the loop."},{"node":"agent.runner","title":"Strip the billing overrides","detail":"ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, BEDROCK, VERTEX and CLAUDECODE are removed so the child always bills the OAuth subscription."},{"node":"agent.runner","title":"Plan, then execute","detail":"claude -p --permission-mode plan, then --resume SESSION_ID --permission-mode acceptEdits."},{"node":"agent.verify","title":"Gate it independently","detail":"Reads git status, then lints each changed subtree: backend → ruff, frontend → eslint, agent → ruff. The model's self-report is not trusted."},{"node":"agent.support","title":"Commit or revert","detail":"Green → commit to agent/auto-<timestamp>. Red, no-op or errored → git reset --hard plus clean -fd. It never pushes."}]}]};
+
+const $=(s,r=document)=>r.querySelector(s);
+const el=(t,c,h)=>{const n=document.createElement(t);if(c)n.className=c;if(h!=null)n.innerHTML=h;return n;};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const NODES=new Map(DATA.nodes.map(n=>[n.id,n]));
+const FLOWS=new Map(DATA.flows.map(f=>[f.id,f]));
+
+/* ── stats ─────────────────────────────────────────────── */
+const SL={sourceFiles:"source files",linesOfCode:"lines",flows:"flows",routes:"routes",
+  apiEndpoints:"endpoints",backendServices:"services",dbTables:"tables",
+  externalSources:"data sources",clientComponents:"client cmps",backgroundTasks:"bg tasks"};
+for(const [k,label] of Object.entries(SL)){
+  const v=DATA.stats[k]; if(v==null) continue;
+  const d=el('div','stat');
+  d.appendChild(el('b',null,v>=1000?v.toLocaleString():v));
+  d.appendChild(el('span',null,label));
+  $('#stats').appendChild(d);
+}
+$('#gen').textContent=DATA.generatedAt;
+
+/* ── legend ────────────────────────────────────────────── */
+for(const L of DATA.layers){
+  const s=el('span',null,`<i style="background:var(--l-${L.id})"></i>${esc(L.label)}`);
+  $('#legend').appendChild(s);
+}
+const search=el('input');
+search.type='search'; search.placeholder='filter — “cache”, “yfinance”, “mock”…';
+search.autocomplete='off';
+$('#legend').appendChild(search);
+
+/* ── columns ───────────────────────────────────────────── */
+const cols=$('#columns');
+for(const L of DATA.layers){
+  const c=el('div','col'); c.dataset.layer=L.id;
+  c.style.setProperty('--accent',`var(--l-${L.id})`);
+  const h=el('div','col-head');
+  h.appendChild(el('b',null,esc(L.short||L.label)));
+  h.appendChild(el('i',null,esc(L.kanji||'')));
+  c.appendChild(h);
+  for(const n of DATA.nodes.filter(n=>n.layer===L.id)){
+    const b=el('button','node'); b.type='button'; b.dataset.id=n.id;
+    b.appendChild(el('span','badges'));
+    b.appendChild(el('span','nm',esc(n.label)));
+    if(n.sub||n.loc) b.appendChild(el('span','sub',
+      `<em>${esc(n.sub||'')}</em>${n.loc?`<span class="loc">${n.loc}</span>`:''}`));
+    b.addEventListener('click',()=>selectNode(n.id));
+    c.appendChild(b);
+  }
+  cols.appendChild(c);
+}
+const nodeEls=new Map([...document.querySelectorAll('.node')].map(e=>[e.dataset.id,e]));
+
+/* ── wires ─────────────────────────────────────────────── */
+const wires=$('#wires');
+let paths=[];
+
+function anchors(A,B){
+  const ac={x:A.x+A.w/2,y:A.y+A.h/2}, bc={x:B.x+B.w/2,y:B.y+B.h/2};
+  if(Math.abs(ac.x-bc.x)>30){
+    const right=bc.x>ac.x;
+    const s={x:right?A.x+A.w:A.x,y:ac.y}, t={x:right?B.x:B.x+B.w,y:bc.y};
+    const d=Math.max(26,Math.abs(t.x-s.x)*.42)*(right?1:-1);
+    return `M${s.x},${s.y} C${s.x+d},${s.y} ${t.x-d},${t.y} ${t.x},${t.y}`;
+  }
+  const down=bc.y<ac.y;
+  const s={x:ac.x,y:down?A.y:A.y+A.h}, t={x:bc.x,y:down?B.y+B.h:B.y};
+  const d=Math.max(20,Math.abs(t.y-s.y)*.45)*(down?-1:1);
+  return `M${s.x},${s.y} C${s.x},${s.y+d} ${t.x},${t.y-d} ${t.x},${t.y}`;
+}
+
+function rectOf(id,box){
+  const e=nodeEls.get(id); if(!e) return null;
+  const r=e.getBoundingClientRect();
+  return {x:r.left-box.left,y:r.top-box.top,w:r.width,h:r.height};
+}
+
+function draw(){
+  const host=$('.canvas-inner');
+  const box=host.getBoundingClientRect();
+  wires.setAttribute('viewBox',`0 0 ${box.width} ${box.height}`);
+  wires.setAttribute('width',box.width); wires.setAttribute('height',box.height);
+  wires.innerHTML=''; paths=[];
+
+  const list = mode==='flow'
+    ? segmentsOf(FLOWS.get(activeFlow)).map(s=>({from:s.from,to:s.to,step:s.step,flow:true}))
+    : DATA.edges;
+
+  for(const e of list){
+    const A=rectOf(e.from,box), B=rectOf(e.to,box);
+    if(!A||!B) continue;
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',anchors(A,B));
+    p.dataset.from=e.from; p.dataset.to=e.to;
+    if(e.step!=null) p.dataset.step=e.step;
+    if(e.flow) p.classList.add('flowline');
+    wires.appendChild(p); paths.push(p);
+  }
+  if(mode==='node'&&activeNode) paintNode(activeNode);
+}
+
+/* consecutive distinct nodes become one segment; repeats are skipped */
+function segmentsOf(flow){
+  if(!flow) return [];
+  const out=[];
+  for(let i=1;i<flow.steps.length;i++){
+    const a=flow.steps[i-1].node, b=flow.steps[i].node;
+    if(a!==b) out.push({from:a,to:b,step:i});
+  }
+  return out;
+}
+
+/* ── modes ─────────────────────────────────────────────── */
+let mode='idle', activeNode=null, activeFlow=null, walkTimer=null;
+
+function resetClasses(){
+  nodeEls.forEach(e=>{
+    e.classList.remove('sel','rel','dim','hit','onflow','now');
+    e.querySelector('.badges').innerHTML='';
+  });
+}
+
+function goIdle(){
+  stopWalk(); mode='idle'; activeNode=null; activeFlow=null;
+  resetClasses();
+  document.querySelectorAll('.flow').forEach(f=>f.classList.remove('on'));
+  search.value='';
+  renderSteps(null);
+  draw();
+  closePanel();
+}
+
+/* — node mode — */
+function neighbours(id){
+  const out=[],inc=[];
+  for(const e of DATA.edges){ if(e.from===id)out.push(e); if(e.to===id)inc.push(e); }
+  return {out,inc};
+}
+function paintNode(id){
+  const {out,inc}=neighbours(id);
+  const rel=new Set([...out.map(e=>e.to),...inc.map(e=>e.from)]);
+  nodeEls.forEach((e,nid)=>{
+    e.classList.remove('sel','rel','dim','hit','onflow','now');
+    if(nid===id) e.classList.add('sel');
+    else if(rel.has(nid)) e.classList.add('rel');
+    else e.classList.add('dim');
+  });
+  paths.forEach(p=>{
+    p.classList.remove('hot','warm','cold');
+    if(p.dataset.from===id) p.classList.add('hot');
+    else if(p.dataset.to===id) p.classList.add('warm');
+    else p.classList.add('cold');
+  });
+}
+function selectNode(id){
+  stopWalk();
+  if(mode==='flow'){ mode='node'; activeFlow=null;
+    document.querySelectorAll('.flow').forEach(f=>f.classList.remove('on'));
+    renderSteps(null); draw(); }
+  mode='node'; activeNode=id;
+  nodeEls.forEach(e=>e.querySelector('.badges').innerHTML='');
+  paintNode(id); openPanel(id);
+}
+
+/* — flow mode — */
+function selectFlow(fid){
+  stopWalk();
+  if(activeFlow===fid){ goIdle(); return; }
+  mode='flow'; activeFlow=fid; activeNode=null;
+  closePanel();
+  const flow=FLOWS.get(fid);
+  const seen=new Map();
+  flow.steps.forEach((s,i)=>{ if(!seen.has(s.node)) seen.set(s.node,[]); seen.get(s.node).push(i+1); });
+  resetClasses();
+  nodeEls.forEach((e,id)=>{
+    if(seen.has(id)){
+      e.classList.add('onflow');
+      e.querySelector('.badges').innerHTML=seen.get(id).map(n=>`<b>${n}</b>`).join('');
+    } else e.classList.add('dim');
+  });
+  document.querySelectorAll('.flow').forEach(f=>f.classList.toggle('on',f.dataset.flow===fid));
+  renderSteps(flow);
+  draw();
+}
+
+function highlightStep(i){
+  const flow=FLOWS.get(activeFlow); if(!flow) return;
+  document.querySelectorAll('.step').forEach((s,j)=>s.classList.toggle('now',j===i));
+  nodeEls.forEach(e=>e.classList.remove('now'));
+  const target=nodeEls.get(flow.steps[i].node);
+  if(target){
+    target.classList.add('now');
+    /* nudge the canvas horizontally only — never scroll the window out from
+       under someone who is reading the step list */
+    const c=$('.canvas'), cr=c.getBoundingClientRect(), tr=target.getBoundingClientRect();
+    if(tr.left<cr.left+8) c.scrollBy({left:tr.left-cr.left-16,behavior:'smooth'});
+    else if(tr.right>cr.right-8) c.scrollBy({left:tr.right-cr.right+16,behavior:'smooth'});
+  }
+  paths.forEach(p=>p.classList.toggle('now',Number(p.dataset.step)===i));
+  const row=document.querySelectorAll('.step')[i];
+  if(row) row.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+
+function stopWalk(){ if(walkTimer){clearInterval(walkTimer);walkTimer=null;}
+  const b=$('#walkBtn'); if(b) b.textContent='▶ walk'; }
+
+function startWalk(){
+  const flow=FLOWS.get(activeFlow); if(!flow) return;
+  if(walkTimer){ stopWalk(); return; }
+  let i=0; highlightStep(i);
+  $('#walkBtn').textContent='■ stop';
+  walkTimer=setInterval(()=>{
+    i++;
+    if(i>=flow.steps.length){ stopWalk(); return; }
+    highlightStep(i);
+  },2000);
+}
+
+function renderSteps(flow){
+  const host=$('#steps');
+  if(!flow){
+    host.innerHTML=`<div class="empty">Pick a flow above to trace an ordered path through the
+      system — or click any box on the board to see what it depends on.</div>`;
+    return;
+  }
+  let h=`<div class="steps-head"><b>${esc(flow.steps.length)} steps</b>
+    <button id="walkBtn" type="button">▶ walk</button></div>`;
+  h+=flow.steps.map((s,i)=>{
+    const n=NODES.get(s.node);
+    return `<button class="step" type="button" data-i="${i}" data-n="${i+1}">
+      <b>${esc(s.title)}</b><u>${esc(n?n.label:s.node)}</u><span>${esc(s.detail)}</span></button>`;
+  }).join('');
+  host.innerHTML=h;
+  host.querySelectorAll('.step').forEach(b=>
+    b.addEventListener('click',()=>{stopWalk();highlightStep(Number(b.dataset.i));}));
+  $('#walkBtn').addEventListener('click',startWalk);
+}
+
+/* ── flow list ─────────────────────────────────────────── */
+for(const f of DATA.flows){
+  const b=el('button','flow'); b.type='button'; b.dataset.flow=f.id;
+  b.appendChild(el('b',null,esc(f.title)));
+  b.appendChild(el('span',null,esc(f.description)));
+  b.addEventListener('click',()=>selectFlow(f.id));
+  $('#flowList').appendChild(b);
+}
+renderSteps(null);
+
+/* ── search ────────────────────────────────────────────── */
+search.addEventListener('input',ev=>{
+  const q=ev.target.value.trim().toLowerCase();
+  if(!q){ if(mode==='idle') resetClasses(); return; }
+  stopWalk();
+  mode='idle'; activeNode=null; activeFlow=null;
+  document.querySelectorAll('.flow').forEach(f=>f.classList.remove('on'));
+  renderSteps(null); draw();
+  nodeEls.forEach((e,id)=>{
+    e.classList.remove('sel','rel','onflow','now');
+    e.querySelector('.badges').innerHTML='';
+    const hit=JSON.stringify(NODES.get(id)).toLowerCase().includes(q);
+    e.classList.toggle('hit',hit); e.classList.toggle('dim',!hit);
+  });
+  paths.forEach(p=>p.classList.add('cold'));
+});
+
+/* ── drawer ────────────────────────────────────────────── */
+function openPanel(id){
+  const n=NODES.get(id); if(!n) return;
+  const {out,inc}=neighbours(id);
+  let h=`<h4>${esc(n.label)}</h4>`;
+  h+=`<div class="path">${esc(n.file||n.url||n.model||DATA.layers.find(l=>l.id===n.layer).label)}</div>`;
+  const tags=[n.kind,n.layer,n.loc?n.loc+' loc':null,n.auth?'auth: '+n.auth:null,n.rendering,
+    n.cache?'cache: '+n.cache:null,n.prefix].filter(Boolean);
+  h+=tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+  if(n.notes) h+=`<div class="blk"><b>Notes</b><p style="margin:0;font-size:13.5px">${esc(n.notes)}</p></div>`;
+  if(n.columns) h+=`<div class="blk"><b>Columns</b><ul>${n.columns.map(c=>`<li><code>${esc(c)}</code></li>`).join('')}</ul></div>`;
+  if(n.constraints) h+=`<div class="blk"><b>Constraints</b><ul>${n.constraints.map(c=>`<li><code>${esc(c)}</code></li>`).join('')}</ul></div>`;
+  if(n.exports) h+=`<div class="blk"><b>Exports</b><ul>${n.exports.map(c=>`<li><code>${esc(c)}</code></li>`).join('')}</ul></div>`;
+  if(n.provides) h+=`<div class="blk"><b>Provides</b><ul>${n.provides.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>`;
+
+  const eps=DATA.endpoints.filter(e=>n.prefix&&e.path.startsWith(n.prefix));
+  if(eps.length) h+=`<div class="blk"><b>Endpoints</b><ul>${eps.map(e=>`<li><code>${esc(e.method)} ${esc(e.path)}</code></li>`).join('')}</ul></div>`;
+
+  const inFlows=DATA.flows.filter(f=>f.steps.some(s=>s.node===id));
+  if(inFlows.length) h+=`<div class="blk"><b>Appears in flows</b>${inFlows.map(f=>
+    `<button class="lnk" data-flow="${esc(f.id)}"><span>${f.steps.filter(s=>s.node===id).map(s=>f.steps.indexOf(s)+1).join(',')}</span>${esc(f.title)}</button>`).join('')}</div>`;
+
+  const link=(e,dir)=>{
+    const o=NODES.get(dir==='out'?e.to:e.from); if(!o) return '';
+    return `<button class="lnk" data-goto="${esc(o.id)}"><span>${esc(e.kind)}</span>${esc(o.label)}${
+      e.note?` <em style="color:var(--ink-3);font-size:11.5px">— ${esc(e.note)}</em>`:''}</button>`;
+  };
+  if(out.length) h+=`<div class="blk"><b>Depends on →</b>${out.map(e=>link(e,'out')).join('')}</div>`;
+  if(inc.length) h+=`<div class="blk"><b>← Depended on by</b>${inc.map(e=>link(e,'in')).join('')}</div>`;
+
+  const b=$('#pbody'); b.innerHTML=h;
+  b.querySelectorAll('[data-goto]').forEach(x=>x.addEventListener('click',()=>selectNode(x.dataset.goto)));
+  b.querySelectorAll('[data-flow]').forEach(x=>x.addEventListener('click',()=>{closePanel();selectFlow(x.dataset.flow);}));
+  $('#panel').classList.add('open'); $('#scrim').classList.add('open');
+}
+function closePanel(){ $('#panel').classList.remove('open'); $('#scrim').classList.remove('open'); }
+$('#pclose').addEventListener('click',closePanel);
+$('#scrim').addEventListener('click',goIdle);
+addEventListener('keydown',e=>{ if(e.key==='Escape') goIdle(); });
+
+/* ── reference sections ────────────────────────────────── */
+const epBody=$('#ep tbody');
+for(const e of DATA.endpoints){
+  const tr=el('tr');
+  tr.innerHTML=`<td><span class="verb ${e.method}">${e.method}</span></td>`+
+    `<td class="m">${esc(e.path)}${e.auth?`<div style="font-size:10px;color:var(--trace);letter-spacing:.1em;text-transform:uppercase;white-space:normal">${esc(e.auth)}</div>`:''}</td>`+
+    `<td class="muted">${(e.sources.length?e.sources:['—']).join(' · ')}</td>`+
+    `<td class="muted">${esc(e.fallback)}</td><td class="muted">${esc(e.summary)}</td>`;
+  epBody.appendChild(tr);
+}
+for(const t of DATA.backgroundTasks){
+  const d=el('div','card');
+  d.innerHTML=`<span class="tick">${esc(t.interval)}</span><b>${esc(t.name)}</b>`+
+    `<p>${esc(t.source)} → <code style="font-family:var(--mono)">${esc(t.writes)}</code>`+
+    (t.startDelay!=='0 s'?` · starts +${esc(t.startDelay)}`:'')+(t.note?`<br>${esc(t.note)}`:'')+`</p>`;
+  $('#tk').appendChild(d);
+}
+for(const r of DATA.liveVsMock){
+  const d=el('div',r.state==='mock'?'mock':'');
+  d.innerHTML=`<em>${esc(r.state)}</em><b>${esc(r.surface)}</b>`+
+    `<p>${esc(r.source)}${r.note?` — ${esc(r.note)}`:''}</p>`;
+  $('#lm').appendChild(d);
+}
+const tblBody=$('#tbl tbody');
+for(const n of DATA.nodes.filter(n=>n.kind==='table')){
+  const tr=el('tr');
+  tr.innerHTML=`<td class="m">${esc(n.label)}</td>`+
+    `<td class="muted" style="font-family:var(--mono);font-size:11.5px;white-space:normal">${n.columns.map(esc).join(', ')}</td>`+
+    `<td class="muted">${esc(n.notes||'—')}${n.constraints?`<br><code class="m">${n.constraints.map(esc).join('; ')}</code>`:''}</td>`;
+  tblBody.appendChild(tr);
+}
+for(const m of DATA.migrations){
+  $('#mig').appendChild(el('div',null,`<code>${esc(m.rev)}</code><span>${esc(m.summary)}</span>`));
+}
+const envBody=$('#env tbody');
+for(const c of [...DATA.config.backend,...DATA.config.frontend]){
+  const tr=el('tr');
+  tr.innerHTML=`<td class="m">${esc(c.key)}${c.required?' <span style="color:var(--trace);font-size:10px;letter-spacing:.1em">REQUIRED</span>':''}</td>`+
+    `<td class="m muted">${c.default==null?'—':esc(c.default)}</td>`+
+    `<td class="muted">${esc(c.note||'—')}</td>`;
+  envBody.appendChild(tr);
+}
+for(const i of DATA.invariants) $('#inv').appendChild(el('li',null,esc(i)));
+
+/* ── go ────────────────────────────────────────────────── */
+draw();
+addEventListener('resize',()=>{clearTimeout(window.__t);window.__t=setTimeout(draw,120);});
+$('.canvas').addEventListener('scroll',()=>{clearTimeout(window.__s);window.__s=setTimeout(draw,60);});
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(draw);
+</script>
+</body>
+</html>

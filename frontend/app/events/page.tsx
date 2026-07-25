@@ -1,3 +1,4 @@
+import Gloss from "@/components/Gloss";
 import EventsBoard from "@/components/EventsBoard";
 import { TODAYS_EVENTS } from "@/lib/dashboard";
 import { fetchEconomicEvents } from "@/lib/api";
@@ -16,7 +17,7 @@ export default async function EventsPage() {
 
   return (
     <main data-screen-label="Events" className="kbk-page-main">
-      <span className="kbk-abs-label">経済指標</span>
+      <Gloss text="経済指標" placement="right" className="kbk-abs-label" />
 
       <div
         style={{
@@ -39,7 +40,8 @@ export default async function EventsPage() {
         >
           Economic Events
         </h1>
-        <span
+        <Gloss
+          text="指標"
           style={{
             fontFamily: "var(--font-mincho)",
             background: "#BE3B33",
@@ -51,9 +53,7 @@ export default async function EventsPage() {
             transform: "rotate(-2.5deg)",
             display: "inline-block",
           }}
-        >
-          指標
-        </span>
+        />
         <span style={{ fontSize: 12, opacity: 0.55 }}>
           {eventCount} upcoming {eventCount === 1 ? "release" : "releases"} ·
           CPI · FOMC · jobs

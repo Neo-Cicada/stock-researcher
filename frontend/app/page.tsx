@@ -1,3 +1,4 @@
+import Gloss from "@/components/Gloss";
 import MarketSeasonBranch from "@/components/MarketSeasonBranch";
 import TrendingTable from "@/components/TrendingTable";
 import ThemesColumn from "@/components/ThemesColumn";
@@ -53,7 +54,7 @@ export default async function DashboardPage() {
 
   return (
     <main data-screen-label="Dashboard" className="kbk-page-main">
-      <span className="kbk-abs-label">相場の季節</span>
+      <Gloss text="相場の季節" placement="right" className="kbk-abs-label" />
 
       <MarketSeasonBranch
         fearGreed={season.fearGreed}

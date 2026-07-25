@@ -1,3 +1,4 @@
+import Gloss from "@/components/Gloss";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import HoldingsBoard from "@/components/HoldingsBoard";
@@ -31,7 +32,7 @@ export default async function InstitutionDetailPage({
 
   return (
     <main data-screen-label="Institution" className="kbk-page-main">
-      <span className="kbk-abs-label">保有株</span>
+      <Gloss text="保有株" placement="right" className="kbk-abs-label" />
 
       <div style={{ paddingTop: 44 }}>
         <Link

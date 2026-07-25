@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { TrendingRowView } from "@/lib/dashboard";
 import { fetchTrending, apiRowToView } from "@/lib/api";
 import TrendingSkeleton from "./TrendingSkeleton";
+import Gloss from "./Gloss";
 
 const GRID_COLS = "58px 1fr 78px 62px 72px 62px";
 const ROWS_PER_PAGE = 20;
@@ -187,7 +188,8 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
         >
           ↻
         </button>
-        <span
+        <Gloss
+          text="話題"
           style={{
             fontFamily: "var(--font-mincho)",
             background: "#BE3B33",
@@ -199,9 +201,7 @@ export default function TrendingTable({ rows: initialRows }: { rows: TrendingRow
             transform: "rotate(-2.5deg)",
             display: "inline-block",
           }}
-        >
-          話題
-        </span>
+        />
         <span style={{ fontSize: 11, opacity: 0.5 }}>ranked by mention count · 24h</span>
       </div>
 

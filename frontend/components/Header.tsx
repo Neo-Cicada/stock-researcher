@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { KNOWN_TICKERS } from "@/lib/known-tickers";
 import { fetchSymbolSearch } from "@/lib/api";
+import Gloss from "./Gloss";
 
 interface Suggestion {
   symbol: string;
@@ -157,16 +158,16 @@ export default function Header() {
         className="kbk-header-brand"
         style={{ textDecoration: "none", color: "inherit" }}
       >
-        <span
+        <Gloss
+          text="株価"
+          placement="bottom"
           style={{
             fontFamily: "var(--font-mincho)",
             fontWeight: 800,
             fontSize: 30,
             letterSpacing: "0.06em",
           }}
-        >
-          株価
-        </span>
+        />
         <span
           style={{
             fontFamily: "var(--font-mincho)",
@@ -316,7 +317,15 @@ export default function Header() {
         </form>
         <span className="kbk-header-date">
           {dateTime.date} · {dateTime.time} ·{" "}
-          {dateTime.isOpen ? "開場中 open" : "閉場 closed"}
+          {dateTime.isOpen ? (
+            <>
+              <Gloss text="開場中" placement="bottom" /> open
+            </>
+          ) : (
+            <>
+              <Gloss text="閉場" placement="bottom" /> closed
+            </>
+          )}
         </span>
       </nav>
     </header>

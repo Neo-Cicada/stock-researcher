@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import Gloss from "@/components/Gloss";
 import MarketSeasonBranch from "@/components/MarketSeasonBranch";
 import TrendingTable from "@/components/TrendingTable";
@@ -15,9 +16,11 @@ import {
   fetchThemes,
 } from "@/lib/api";
 
-// Fetches live backend data at request time; skip build-time prerender so a
-// slow/unreachable backend can't time out the Vercel build (falls back to mock).
-export const dynamic = "force-dynamic";
+// Render per request (via connection() below) so a backend that's down at
+// build time can't bake mock data into a prerendered page — but the fetches
+// themselves are cached for 60s, so a nav lands on warm data instead of a
+// fresh backend round-trip. The price task only refreshes every 5 min anyway.
+export const revalidate = 60;
 
 async function getInitialRows(): Promise<{
   rows: ReturnType<typeof getTrendingRows>;
@@ -45,6 +48,7 @@ async function getThemes() {
 }
 
 export default async function DashboardPage() {
+  await connection();
   const [initial, season, themes] = await Promise.all([
     getInitialRows(),
     getMarketSeason(),

@@ -1,7 +1,8 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reddit import TrendingSnapshot
@@ -22,6 +23,15 @@ FILTERS = [
 ]
 
 MAX_PAGES = 3  # 100 per page = up to 300 tickers per filter
+
+# trending_snapshots is append-only: 8 filters x up to 300 tickers every 10
+# minutes is ~193k rows (~41 MB) a day, which filled a small managed-Postgres
+# volume in eight days and took production down with a DiskFullError. Nothing
+# reads beyond the newest snapshot per source -- /api/reddit/trending and
+# compute_social_bullish_pct() both select the latest fetched_at, and the "24h
+# ago" comparisons use ApeWisdom's own rank_24h_ago / mentions_24h_ago columns
+# rather than our history -- so a day of retention is already generous.
+RETENTION_HOURS = 24
 
 
 async def fetch_filter(
@@ -102,6 +112,43 @@ async def store_snapshots(
     return len(snapshots)
 
 
+def _prune_stmt(cutoff: datetime, keep: list[datetime]):
+    """Build the retention DELETE: everything before ``cutoff``, except the
+    snapshot timestamps in ``keep`` (the newest per source). Pure, so the
+    retention rule can be asserted without a database."""
+    stmt = delete(TrendingSnapshot).where(TrendingSnapshot.fetched_at < cutoff)
+    if keep:
+        stmt = stmt.where(TrendingSnapshot.fetched_at.notin_(keep))
+    return stmt
+
+
+async def prune_old_snapshots(
+    db: AsyncSession, retention_hours: int = RETENTION_HOURS
+) -> int:
+    """Delete trending snapshots older than the retention window.
+
+    The newest snapshot of every source is always kept, however old it is. That
+    matters when upstream is down: pruning by age alone would empty the table
+    after a long outage and leave /api/reddit/trending with nothing to serve,
+    whereas stale rows at least keep the dashboard rendering.
+
+    Returns the number of rows deleted.
+    """
+    cutoff = datetime.now(UTC) - timedelta(hours=retention_hours)
+
+    # One timestamp per source (there are only a handful), resolved up front so
+    # the DELETE stays a simple indexed range scan instead of a correlated
+    # subquery over a table with hundreds of thousands of rows.
+    latest = await db.execute(
+        select(func.max(TrendingSnapshot.fetched_at)).group_by(TrendingSnapshot.source)
+    )
+    keep = [ts for (ts,) in latest.all() if ts is not None]
+
+    result = await db.execute(_prune_stmt(cutoff, keep))
+    await db.commit()
+    return result.rowcount or 0
+
+
 async def fetch_all_filters(db: AsyncSession) -> dict[str, int]:
     """Fetch trending data from all ApeWisdom filters.
 
@@ -141,5 +188,22 @@ async def fetch_all_filters(db: AsyncSession) -> dict[str, int]:
                             "ApeWisdom %s: session close failed", filter_name
                         )
                 results[filter_name] = 0
+
+    # Prune after storing, so a run that inserted nothing still can't shrink the
+    # table below one snapshot per source. Failure here must not fail the fetch.
+    try:
+        deleted = await prune_old_snapshots(db)
+        if deleted:
+            logger.info(
+                "ApeWisdom prune: %d rows older than %dh deleted",
+                deleted,
+                RETENTION_HOURS,
+            )
+    except Exception:
+        logger.exception("ApeWisdom prune: failed")
+        try:
+            await db.rollback()
+        except Exception:
+            logger.warning("ApeWisdom prune: rollback failed")
 
     return results

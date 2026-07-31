@@ -120,8 +120,26 @@ async def fetch_all_filters(db: AsyncSession) -> dict[str, int]:
             except Exception:
                 logger.exception("ApeWisdom %s: failed", filter_name)
                 # Clear the failed transaction so the next filter can commit
-                # instead of hitting PendingRollbackError.
-                await db.rollback()
+                # instead of hitting PendingRollbackError. A connection killed
+                # by the host's idle-timeout proxy raises an InterfaceError that
+                # SQLAlchemy recognises as a disconnect, so it invalidates the
+                # connection and this rollback is a no-op — but rollback can
+                # itself raise in other broken states, and an escaping exception
+                # would abandon every remaining filter. Swallow it and close()
+                # instead: the session then checks out a fresh connection.
+                try:
+                    await db.rollback()
+                except Exception:
+                    logger.warning(
+                        "ApeWisdom %s: rollback failed; discarding connection",
+                        filter_name,
+                    )
+                    try:
+                        await db.close()
+                    except Exception:
+                        logger.exception(
+                            "ApeWisdom %s: session close failed", filter_name
+                        )
                 results[filter_name] = 0
 
     return results

@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +36,28 @@ class Settings(BaseSettings):
     # contact in .env (SEC_USER_AGENT) so SEC can reach you if a request pattern
     # misbehaves; this generic default works but has no real contact.
     SEC_USER_AGENT: str = "Kabuka Research (stock-researcher; contact via repo)"
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _force_asyncpg_driver(cls, value: str) -> str:
+        """Normalize a driver-less Postgres URL to the asyncpg scheme.
+
+        Managed hosts (Railway, Render, Heroku) inject DATABASE_URL as
+        `postgresql://…` — or the legacy `postgres://…` — but this app's engine
+        is SQLAlchemy async and needs an explicit `+asyncpg`; without it
+        create_async_engine() falls back to the default psycopg2 driver, which
+        isn't installed, and the app dies at import (crash-looping the
+        container, since docker-entrypoint.sh runs alembic under `set -e`).
+        Rewriting the scheme here lets a host's variable reference be wired
+        straight through; a URL that already names a driver (the
+        `postgresql+asyncpg://…` in .env.example) is returned untouched.
+        """
+        scheme, sep, rest = value.partition("://")
+        if not sep or "+" in scheme:
+            return value
+        if scheme in ("postgres", "postgresql"):
+            return f"postgresql+asyncpg://{rest}"
+        return value
 
 
 settings = Settings()

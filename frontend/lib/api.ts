@@ -19,6 +19,43 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/**
+ * Server-rendered pages block their navigation on these fetches, so a wedged
+ * upstream (SEC EDGAR, Finnhub, yfinance) must not be able to hold a route
+ * open indefinitely — the nav would just look frozen. Bail after this and let
+ * the caller fall back to mock data.
+ */
+const FETCH_TIMEOUT_MS = 6000;
+
+/**
+ * A page fetch that can't outlive FETCH_TIMEOUT_MS and that participates in
+ * Next's data cache (`revalidate` seconds), so a second visit to a route
+ * renders from cache instead of re-hitting the backend. Windows are matched to
+ * how often the backend itself refreshes each source.
+ */
+function pageFetch(url: string, revalidate: number): Promise<Response> {
+  return fetch(url, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    next: { revalidate },
+  });
+}
+
+/** Cache windows, in seconds, keyed to each source's real refresh cadence. */
+const REVALIDATE = {
+  /** Price task runs every 5 min, ApeWisdom every 10. */
+  trending: 60,
+  /** CNN Fear & Greed is fetched hourly. */
+  season: 300,
+  /** Finnhub news, 1h TTL cache on the backend. */
+  themes: 300,
+  /** FRED release dates change daily at most. */
+  events: 900,
+  /** Finnhub earnings calendar, 1h TTL cache on the backend. */
+  earnings: 600,
+  /** 13F filings are quarterly; the backend caches them 6h. */
+  institutions: 3600,
+} as const;
+
 export interface TrendingTickerAPI {
   ticker: string;
   name: string;
@@ -43,7 +80,10 @@ export async function fetchTrending(
   const params = new URLSearchParams({ limit: String(limit) });
   if (source) params.set("source", source);
 
-  const res = await fetch(`${API_BASE}/api/reddit/trending?${params}`);
+  const res = await pageFetch(
+    `${API_BASE}/api/reddit/trending?${params}`,
+    REVALIDATE.trending,
+  );
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -404,7 +444,10 @@ export function apiMarketSeasonToView(m: MarketSeasonAPI): MarketSeasonView {
  */
 export async function fetchMarketSeason(): Promise<MarketSeasonView | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/market/season`);
+    const res = await pageFetch(
+      `${API_BASE}/api/market/season`,
+      REVALIDATE.season,
+    );
     if (!res.ok) return null;
     const data: MarketSeasonAPI = await res.json();
     if (!data.available || data.score == null) return null;
@@ -448,7 +491,10 @@ export function apiThemeToView(t: ThemeAPI, i: number): Theme {
  */
 export async function fetchThemes(): Promise<Theme[] | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/market/themes`);
+    const res = await pageFetch(
+      `${API_BASE}/api/market/themes`,
+      REVALIDATE.themes,
+    );
     if (!res.ok) return null;
     const data: ThemeAPI[] = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -517,7 +563,10 @@ export function apiEventToView(e: EconomicEventAPI): EconomicEventView {
  */
 export async function fetchEconomicEvents(): Promise<EconomicEventView[] | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/market/events`);
+    const res = await pageFetch(
+      `${API_BASE}/api/market/events`,
+      REVALIDATE.events,
+    );
     if (!res.ok) return null;
     const data: EconomicEventAPI[] = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -601,7 +650,10 @@ export function apiEarningsToView(e: EarningsEventAPI): EarningsEventView {
  */
 export async function fetchEarnings(): Promise<EarningsEventView[] | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/market/earnings`);
+    const res = await pageFetch(
+      `${API_BASE}/api/market/earnings`,
+      REVALIDATE.earnings,
+    );
     if (!res.ok) return null;
     const data: EarningsEventAPI[] = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -785,7 +837,10 @@ export function apiInstitutionDetailToView(
  */
 export async function fetchInstitutions(): Promise<InstitutionView[] | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/institutions/`);
+    const res = await pageFetch(
+      `${API_BASE}/api/institutions/`,
+      REVALIDATE.institutions,
+    );
     if (!res.ok) return null;
     const data: InstitutionAPI[] = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;

@@ -191,3 +191,65 @@ def test_download_prices_zero_previous_close(monkeypatch):
     """A 0.00 previous close must not raise ZeroDivisionError."""
     _patch_download(monkeypatch, _multi_frame({"NVDA": [0.0, 110.0]}))
     assert _download_prices(["NVDA"])["NVDA"]["day_change_pct"] == 0.0
+
+
+# ---- multitasking thread reaping ------------------------------------------
+#
+# yf.download(threads=True) spawns one thread per ticker via `multitasking`,
+# which appends every one to a module-level list it never prunes ("Completed
+# tasks remain in this list until program termination"). Left alone that
+# stranded ~2 dead Thread objects per ticker per 5-minute cycle — measured at
+# ~90 MB/hour in production, which walked the 1 GB container into the OOM
+# killer roughly every eleven hours.
+
+
+class _FakeThread:
+    def __init__(self, alive: bool):
+        self._alive = alive
+
+    def is_alive(self) -> bool:
+        return self._alive
+
+
+def test_reap_finished_threads_drops_dead_keeps_running(monkeypatch):
+    live = _FakeThread(True)
+    registry = [_FakeThread(False), live, _FakeThread(False)]
+    monkeypatch.setattr(
+        price_fetcher.multitasking, "get_list_of_tasks", lambda: registry
+    )
+
+    price_fetcher._reap_finished_threads()
+
+    # Pruned in place (the accessor hands back the real list, so rebinding a
+    # local would leave the library still holding the dead threads).
+    assert registry == [live]
+
+
+def test_reap_finished_threads_survives_registry_errors(monkeypatch):
+    def _boom():
+        raise RuntimeError("multitasking internals changed")
+
+    monkeypatch.setattr(price_fetcher.multitasking, "get_list_of_tasks", _boom)
+    # Bookkeeping must never break a price fetch.
+    price_fetcher._reap_finished_threads()
+
+
+def test_download_prices_reaps_threads(monkeypatch):
+    """The registry must not grow across repeated fetch cycles."""
+    registry = []
+
+    def _fake_download(tickers, *a, **k):
+        # Stand in for multitasking: one finished worker thread per ticker.
+        registry.extend(_FakeThread(False) for _ in tickers)
+        return _multi_frame({"NVDA": [100.0, 110.0]})
+
+    monkeypatch.setattr(price_fetcher.yf, "download", _fake_download)
+    monkeypatch.setattr(price_fetcher, "_enrich_extended", lambda results: None)
+    monkeypatch.setattr(
+        price_fetcher.multitasking, "get_list_of_tasks", lambda: registry
+    )
+
+    for _ in range(5):
+        _download_prices(["NVDA"])
+
+    assert registry == []

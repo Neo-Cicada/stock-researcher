@@ -22,17 +22,51 @@ _themes_cache: dict = {"data": None, "ts": 0.0}
 
 # Per-ticker company-news cache: {ticker: {"data": [...], "ts": float}}.
 _company_news_cache: dict[str, dict] = {}
+_NEWS_CACHE_MAX = 256
 
 # Per-query symbol-search cache: {query: {"data": [...], "ts": float}}.
+# Keyed by the raw query, so every *prefix* the header search sends while
+# someone types ("SH", "SHA", "SHAR", …) lands its own entry. Without a cap
+# this is the fastest-growing cache in the process.
 _search_cache: dict[str, dict] = {}
+_SEARCH_CACHE_MAX = 256
 
 # Per-ticker company-profile-name cache: {ticker: {"data": str, "ts": float}}.
+# Entries are tiny (one name string), so it can hold more.
 _profile_cache: dict[str, dict] = {}
+_PROFILE_CACHE_MAX = 512
 
 # Calendars change at most a few times a day, so a longer TTL is fine.
 _CALENDAR_TTL_SECONDS = 3600  # 1 hour
 _economic_cache: dict = {"data": None, "ts": 0.0}
 _earnings_cache: dict = {"data": None, "ts": 0.0}
+
+def _cache_put(
+    cache: dict[str, dict],
+    key: str,
+    value,
+    ttl: float,
+    max_size: int,
+) -> None:
+    """Store an entry, purging stale ones and capping the cache size.
+
+    Mirrors ``price_fetcher._cache_put``. These caches are module-level and
+    live for the whole process; the reads below only check an entry's own TTL,
+    which means a plain ``cache[key] = …`` never removes anything and the dict
+    grows for the life of the container. The keyspaces are effectively
+    unbounded — every ticker anyone views, and every prefix anyone types into
+    the header search — so we purge expired entries on each write, then drop
+    the oldest if still over ``max_size``.
+    """
+    now = time.time()
+    cache[key] = {"data": value, "ts": now}
+    for k in [k for k, e in cache.items() if now - e["ts"] >= ttl]:
+        del cache[k]
+    if len(cache) > max_size:
+        oldest = sorted(cache.items(), key=lambda kv: kv[1]["ts"])
+        for k, _ in oldest[: len(cache) - max_size]:
+            del cache[k]
+
 
 MAX_THEMES = 5
 MAX_COMPANY_NEWS = 8
@@ -257,7 +291,9 @@ async def get_ticker_news(ticker: str, name: str | None = None) -> list[dict]:
     )
     items = items[:MAX_COMPANY_NEWS]
 
-    _company_news_cache[key] = {"data": items, "ts": now}
+    _cache_put(
+        _company_news_cache, key, items, _CACHE_TTL_SECONDS, _NEWS_CACHE_MAX
+    )
     return items
 
 
@@ -476,7 +512,7 @@ async def get_company_name(ticker: str) -> str:
         return entry["data"] if entry is not None else ""
 
     name = (data.get("name") or "").strip() if isinstance(data, dict) else ""
-    _profile_cache[key] = {"data": name, "ts": now}
+    _cache_put(_profile_cache, key, name, _CACHE_TTL_SECONDS, _PROFILE_CACHE_MAX)
     return name
 
 
@@ -539,5 +575,5 @@ async def search_symbols(query: str) -> list[dict]:
     )
     items = items[:MAX_SEARCH_RESULTS]
 
-    _search_cache[q] = {"data": items, "ts": now}
+    _cache_put(_search_cache, q, items, _CACHE_TTL_SECONDS, _SEARCH_CACHE_MAX)
     return items

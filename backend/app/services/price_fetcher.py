@@ -6,6 +6,7 @@ import time
 from datetime import UTC, datetime
 from functools import partial
 
+import multitasking
 import yfinance as yf
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,6 +58,35 @@ def _release_native_memory() -> None:
             _malloc_trim(0)
         except Exception:
             pass
+
+
+def _reap_finished_threads() -> None:
+    """Drop finished yfinance worker threads from multitasking's task registry.
+
+    ``yf.download(threads=True)`` dispatches through the ``multitasking``
+    package, which spawns one thread per ticker and appends every one to a
+    module-level list (``multitasking/__init__.py``: ``config["TASKS"]``). That
+    list is never pruned — its own docstring says "Completed tasks remain in
+    this list until program termination" — so each 5-minute cycle strands ~2
+    dead ``Thread`` objects per ticker (one per download pass) for the life of
+    the process.
+
+    Measured at ~4.5 KB per stranded Thread, which at this task's ticker count
+    is ~7.5 MB per cycle, or ~90 MB/hour — enough to walk a 1 GB container into
+    the OOM killer in about eleven hours.
+
+    ``_release_native_memory`` cannot help here: those objects are still
+    *referenced*, not merely freed-and-cached, so there is nothing for
+    ``malloc_trim`` to return. We prune in place via the public accessor,
+    keeping any thread that is still running.
+    """
+    try:
+        tasks = multitasking.get_list_of_tasks()
+        tasks[:] = [t for t in tasks if t is not None and t.is_alive()]
+    except Exception:
+        # Registry internals are not part of yfinance's contract; never let a
+        # bookkeeping cleanup break a price fetch.
+        logger.debug("could not reap multitasking threads", exc_info=True)
 
 
 # In-process TTL cache for single-ticker detail (ticker -> (expires_at, payload)).
@@ -259,6 +289,12 @@ def _download_prices(tickers: list[str]) -> dict[str, dict]:
     # Best-effort pre-/post-market enrichment for the tickers we priced.
     if results:
         _enrich_extended(results)
+
+    # Both passes above ran with threads=True, so multitasking is now holding a
+    # dead Thread per ticker per pass. Drop them before returning — this is the
+    # only path here that spawns them (the Ticker-based detail/institutional
+    # fetches go through yfinance.base, not yfinance.multi).
+    _reap_finished_threads()
 
     return results
 

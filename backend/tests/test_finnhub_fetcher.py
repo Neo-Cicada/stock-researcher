@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import date, timedelta
 
 from app.services import finnhub_fetcher
@@ -270,3 +271,46 @@ def test_search_symbols_ranks_prefix_matches_first(monkeypatch):
     results = asyncio.run(search_symbols("aa"))
     # AA-prefix match leads; duplicate symbol collapsed; non-matches follow.
     assert [r["symbol"] for r in results] == ["AAPL", "AL", "GOOGL"]
+
+
+# ---- Bounded TTL caches ----------------------------------------------------
+#
+# These module-level dicts live for the process's lifetime and their keyspaces
+# are effectively unbounded (every ticker viewed, every search prefix typed),
+# so an unbounded cache is a slow memory leak in a container with a hard limit.
+
+
+def test_cache_put_caps_size_and_evicts_oldest():
+    cache: dict[str, dict] = {}
+    now = time.time()
+    for i in range(10):
+        finnhub_fetcher._cache_put(cache, f"Q{i}", [i], ttl=600, max_size=4)
+        # Ages within the TTL but distinct and increasing, so "oldest" is
+        # unambiguous — entries must be evicted by the cap, not by expiry.
+        cache[f"Q{i}"]["ts"] = now - 100 + i
+
+    assert len(cache) == 4
+    # The four most recent survive; the six oldest were dropped.
+    assert sorted(cache) == ["Q6", "Q7", "Q8", "Q9"]
+
+
+def test_cache_put_purges_expired_entries():
+    cache: dict[str, dict] = {}
+    finnhub_fetcher._cache_put(cache, "OLD", ["stale"], ttl=600, max_size=100)
+    # Backdate it well past the TTL.
+    cache["OLD"]["ts"] -= 10_000
+
+    finnhub_fetcher._cache_put(cache, "NEW", ["fresh"], ttl=600, max_size=100)
+
+    # The expired entry is gone even though the cache was nowhere near max_size.
+    assert "OLD" not in cache
+    assert cache["NEW"]["data"] == ["fresh"]
+
+
+def test_cache_put_keeps_entries_within_ttl_and_cap():
+    cache: dict[str, dict] = {}
+    finnhub_fetcher._cache_put(cache, "A", [1], ttl=600, max_size=100)
+    finnhub_fetcher._cache_put(cache, "B", [2], ttl=600, max_size=100)
+
+    assert sorted(cache) == ["A", "B"]
+    assert cache["A"]["data"] == [1]
